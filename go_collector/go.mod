@@ -1,3 +1,3 @@
 module github.com/evenikkal/hhanalyst/go_collector
 
-go 1.21
+go 1.22

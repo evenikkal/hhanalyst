@@ -6,3 +6,4 @@ __pycache__/
 dist/
 build/
 .env
+go_collector/go_collector.exe
