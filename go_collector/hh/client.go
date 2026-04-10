@@ -13,19 +13,21 @@ import (
 )
 
 const (
-	baseURL    = "https://api.hh.ru"
-	maxWorkers = 5
-	pageSize   = 100
+	defaultBaseURL = "https://api.hh.ru"
+	maxWorkers     = 5
+	pageSize       = 100
 )
 
 type Client struct {
 	http    *http.Client
+	baseURL string
 	limiter <-chan time.Time
 }
 
 func NewClient() *Client {
 	return &Client{
 		http:    &http.Client{Timeout: 15 * time.Second},
+		baseURL: defaultBaseURL,
 		limiter: time.Tick(250 * time.Millisecond), // 4 req/s to stay within limits
 	}
 }
@@ -41,7 +43,7 @@ func (c *Client) searchPage(query, area string, page int) (*models.SearchRespons
 		params.Set("area", area)
 	}
 
-	req, err := http.NewRequest("GET", baseURL+"/vacancies?"+params.Encode(), nil)
+	req, err := http.NewRequest("GET", c.baseURL+"/vacancies?"+params.Encode(), nil)
 	if err != nil {
 		return nil, err
 	}

@@ -1,10 +1,9 @@
 import os
 import httpx
 from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import JSONResponse
 
-from analyzer.skills import top_skills, extract_skills
-from analyzer.classifier import level_distribution, classify_level
+from analyzer.skills import top_skills
+from analyzer.classifier import level_distribution
 from analyzer.charts import skills_by_region_chart, level_distribution_chart, top_skills_bar_chart
 
 app = FastAPI(title="HH Analyst", version="1.0.0")

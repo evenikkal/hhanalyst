@@ -1,8 +1,8 @@
 FROM golang:1.21-alpine AS builder
 WORKDIR /app
 
-# Cache dependencies
-COPY go.mod go.sum ./
+# Cache dependencies (no go.sum — stdlib only)
+COPY go.mod ./
 RUN go mod download
 
 COPY . .

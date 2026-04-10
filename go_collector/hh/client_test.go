@@ -10,49 +10,81 @@ import (
 	"github.com/evenikkal/hhanalyst/go_collector/models"
 )
 
-func newTestClient(server *httptest.Server) *Client {
+func newTestClient(baseURL string) *Client {
 	return &Client{
-		http:    server.Client(),
+		http:    &http.Client{Timeout: 5 * time.Second},
+		baseURL: baseURL,
 		limiter: time.Tick(1 * time.Millisecond),
 	}
 }
 
-func makeHandler(pages int) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func TestCollectSinglePage(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/vacancies" {
+			t.Errorf("unexpected path: %s", r.URL.Path)
+		}
 		resp := models.SearchResponse{
 			Items: []models.Vacancy{
 				{ID: "1", Name: "Go Developer", Area: models.Area{ID: "1", Name: "Moscow"}},
+				{ID: "2", Name: "Senior Go", Area: models.Area{ID: "2", Name: "SPb"}},
 			},
-			Found: 1,
-			Pages: pages,
+			Found: 2,
+			Pages: 1,
 			Page:  0,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(resp)
+	}))
+	defer srv.Close()
+
+	c := newTestClient(srv.URL)
+	vacancies, err := c.Collect("Go", "", 5)
+	if err != nil {
+		t.Fatalf("Collect failed: %v", err)
+	}
+	if len(vacancies) != 2 {
+		t.Fatalf("expected 2 vacancies, got %d", len(vacancies))
+	}
+	if vacancies[0].Name != "Go Developer" {
+		t.Errorf("expected 'Go Developer', got %q", vacancies[0].Name)
 	}
 }
 
-func TestCollectSinglePage(t *testing.T) {
-	srv := httptest.NewServer(makeHandler(1))
+func TestCollectMultiplePages(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		page := r.URL.Query().Get("page")
+		resp := models.SearchResponse{
+			Items: []models.Vacancy{
+				{ID: page + "1", Name: "Dev page " + page},
+			},
+			Found: 200,
+			Pages: 3,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+	}))
 	defer srv.Close()
 
-	c := newTestClient(srv)
-	// Override base URL via monkey-patching isn't possible cleanly,
-	// so we test searchPage directly using the server URL.
-	c.http = srv.Client()
+	c := newTestClient(srv.URL)
+	vacancies, err := c.Collect("test", "", 3)
+	if err != nil {
+		t.Fatalf("Collect failed: %v", err)
+	}
+	if len(vacancies) != 3 {
+		t.Fatalf("expected 3 vacancies (1 per page × 3 pages), got %d", len(vacancies))
+	}
+}
 
-	// Replace baseURL temporarily — use a wrapper approach via exported func for real tests.
-	// Here we validate the response parsing logic directly.
-	resp := &models.SearchResponse{
-		Items: []models.Vacancy{{ID: "42", Name: "Senior Go Engineer"}},
-		Found: 1,
-		Pages: 1,
-	}
-	if len(resp.Items) != 1 {
-		t.Fatalf("expected 1 item, got %d", len(resp.Items))
-	}
-	if resp.Items[0].ID != "42" {
-		t.Errorf("expected ID=42, got %s", resp.Items[0].ID)
+func TestCollectAPIError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusTooManyRequests)
+	}))
+	defer srv.Close()
+
+	c := newTestClient(srv.URL)
+	_, err := c.Collect("test", "", 1)
+	if err == nil {
+		t.Fatal("expected error for 429 response, got nil")
 	}
 }
 
@@ -80,13 +112,23 @@ func TestVacancyModelJSON(t *testing.T) {
 	}
 }
 
-func TestHealthEndpoint(t *testing.T) {
-	w := httptest.NewRecorder()
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"status": "ok", "service": "go_collector"})
+func TestQueryParamsPassedThrough(t *testing.T) {
+	var gotArea, gotText string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotArea = r.URL.Query().Get("area")
+		gotText = r.URL.Query().Get("text")
+		resp := models.SearchResponse{Pages: 1, Items: []models.Vacancy{{ID: "1"}}}
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer srv.Close()
 
-	resp := w.Result()
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("expected 200, got %d", resp.StatusCode)
+	c := newTestClient(srv.URL)
+	c.Collect("Python developer", "2", 1)
+
+	if gotArea != "2" {
+		t.Errorf("expected area=2, got %q", gotArea)
+	}
+	if gotText != "Python developer" {
+		t.Errorf("expected text='Python developer', got %q", gotText)
 	}
 }
