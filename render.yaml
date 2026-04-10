@@ -6,9 +6,6 @@ services:
     dockerContext: ./go_collector
     plan: free
     region: frankfurt
-    envVars:
-      - key: PORT
-        value: "8082"
 
   - type: web
     name: hhanalyst-analyzer
@@ -19,9 +16,4 @@ services:
     region: frankfurt
     envVars:
       - key: COLLECTOR_URL
-        fromService:
-          name: hhanalyst-collector
-          type: web
-          property: hostURL
-      - key: PORT
-        value: "8090"
+        value: https://hhanalyst-collector.onrender.com
