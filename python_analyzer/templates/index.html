@@ -347,20 +347,38 @@
             <label for="area">Регион</label>
             <select id="area" name="area">
               <option value="" {% if not area %}selected{% endif %}>Все регионы</option>
-              <option value="113" {% if area == '113' %}selected{% endif %}>Россия</option>
-              <option value="1" {% if area == '1' %}selected{% endif %}>Москва</option>
-              <option value="2" {% if area == '2' %}selected{% endif %}>Санкт-Петербург</option>
-              <option value="3" {% if area == '3' %}selected{% endif %}>Екатеринбург</option>
-              <option value="4" {% if area == '4' %}selected{% endif %}>Новосибирск</option>
-              <option value="88" {% if area == '88' %}selected{% endif %}>Казань</option>
-              <option value="66" {% if area == '66' %}selected{% endif %}>Нижний Новгород</option>
-              <option value="104" {% if area == '104' %}selected{% endif %}>Минск</option>
+              <optgroup label="Страны">
+                <option value="113" {% if area == '113' %}selected{% endif %}>Россия</option>
+              </optgroup>
+              <optgroup label="Города">
+                <option value="1" {% if area == '1' %}selected{% endif %}>Москва</option>
+                <option value="2" {% if area == '2' %}selected{% endif %}>Санкт-Петербург</option>
+                <option value="3" {% if area == '3' %}selected{% endif %}>Екатеринбург</option>
+                <option value="4" {% if area == '4' %}selected{% endif %}>Новосибирск</option>
+                <option value="88" {% if area == '88' %}selected{% endif %}>Казань</option>
+                <option value="66" {% if area == '66' %}selected{% endif %}>Нижний Новгород</option>
+                <option value="92" {% if area == '92' %}selected{% endif %}>Тула</option>
+                <option value="53" {% if area == '53' %}selected{% endif %}>Краснодар</option>
+                <option value="78" {% if area == '78' %}selected{% endif %}>Самара</option>
+                <option value="26" {% if area == '26' %}selected{% endif %}>Воронеж</option>
+                <option value="76" {% if area == '76' %}selected{% endif %}>Ростов-на-Дону</option>
+                <option value="72" {% if area == '72' %}selected{% endif %}>Пермь</option>
+                <option value="54" {% if area == '54' %}selected{% endif %}>Красноярск</option>
+                <option value="99" {% if area == '99' %}selected{% endif %}>Уфа</option>
+                <option value="68" {% if area == '68' %}selected{% endif %}>Омск</option>
+                <option value="104" {% if area == '104' %}selected{% endif %}>Челябинск</option>
+                <option value="41" {% if area == '41' %}selected{% endif %}>Калининград</option>
+                <option value="95" {% if area == '95' %}selected{% endif %}>Тюмень</option>
+                <option value="112" {% if area == '112' %}selected{% endif %}>Ярославль</option>
+                <option value="90" {% if area == '90' %}selected{% endif %}>Томск</option>
+                <option value="35" {% if area == '35' %}selected{% endif %}>Иркутск</option>
+              </optgroup>
             </select>
           </div>
           <div class="field">
             <label for="max_pages">Страниц</label>
             <input type="number" id="max_pages" name="max_pages"
-                   value="{{ max_pages or 3 }}" min="1" max="20">
+                   value="{{ max_pages or 5 }}" min="1" max="20">
           </div>
           <div class="field">
             <label>&nbsp;</label>
