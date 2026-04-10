@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: hhanalyst-collector
+    runtime: docker
+    dockerfilePath: ./go_collector/Dockerfile
+    dockerContext: ./go_collector
+    plan: free
+    region: frankfurt
+    envVars:
+      - key: PORT
+        value: "8082"
+
+  - type: web
+    name: hhanalyst-analyzer
+    runtime: docker
+    dockerfilePath: ./python_analyzer/Dockerfile
+    dockerContext: ./python_analyzer
+    plan: free
+    region: frankfurt
+    envVars:
+      - key: COLLECTOR_URL
+        fromService:
+          name: hhanalyst-collector
+          type: web
+          property: hostURL
+      - key: PORT
+        value: "8090"

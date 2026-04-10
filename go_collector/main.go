@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 
 	"github.com/evenikkal/hhanalyst/go_collector/hh"
@@ -16,8 +17,12 @@ func main() {
 	mux.HandleFunc("/health", healthHandler)
 	mux.HandleFunc("/vacancies", vacanciesHandler)
 
-	log.Println("go_collector listening on :8082")
-	if err := http.ListenAndServe(":8082", mux); err != nil {
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8082"
+	}
+	log.Printf("go_collector listening on :%s", port)
+	if err := http.ListenAndServe(":"+port, mux); err != nil {
 		log.Fatal(err)
 	}
 }
