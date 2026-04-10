@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HH Analyst — Анализ вакансий hh.ru</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0f172a;
+      --surface: #1e293b;
+      --surface2: #334155;
+      --border: #475569;
+      --text: #f1f5f9;
+      --text2: #94a3b8;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --green: #22c55e;
+      --orange: #f59e0b;
+      --red: #ef4444;
+      --radius: 12px;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.6;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* Header */
+    header {
+      padding: 32px 0 16px;
+      border-bottom: 1px solid var(--surface2);
+      margin-bottom: 32px;
+    }
+    header h1 {
+      font-size: 28px;
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--accent), #a78bfa);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    header p {
+      color: var(--text2);
+      font-size: 14px;
+      margin-top: 4px;
+    }
+
+    /* Search Form */
+    .search-card {
+      background: var(--surface);
+      border: 1px solid var(--surface2);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin-bottom: 32px;
+    }
+    .search-grid {
+      display: grid;
+      grid-template-columns: 1fr 200px 120px auto;
+      gap: 12px;
+      align-items: end;
+    }
+    @media (max-width: 768px) {
+      .search-grid { grid-template-columns: 1fr; }
+    }
+    .field label {
+      display: block;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text2);
+      margin-bottom: 6px;
+    }
+    .field input, .field select {
+      width: 100%;
+      padding: 10px 14px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 14px;
+      font-family: inherit;
+      outline: none;
+      transition: border-color .2s;
+    }
+    .field input:focus, .field select:focus {
+      border-color: var(--accent);
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px 24px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      transition: background .2s;
+      white-space: nowrap;
+      height: 42px;
+    }
+    .btn:hover { background: var(--accent-hover); }
+    .btn:disabled {
+      opacity: .5;
+      cursor: not-allowed;
+    }
+    .btn svg { width: 18px; height: 18px; }
+
+    /* Loading */
+    .loading-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.8);
+      z-index: 100;
+      place-items: center;
+    }
+    .loading-overlay.active { display: grid; }
+    .spinner-box {
+      text-align: center;
+      color: var(--text2);
+    }
+    .spinner {
+      width: 48px; height: 48px;
+      border: 4px solid var(--surface2);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .8s linear infinite;
+      margin: 0 auto 16px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Stats Row */
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--surface2);
+      border-radius: var(--radius);
+      padding: 20px;
+    }
+    .stat-card .label {
+      font-size: 13px;
+      color: var(--text2);
+      margin-bottom: 4px;
+    }
+    .stat-card .value {
+      font-size: 28px;
+      font-weight: 700;
+    }
+    .stat-card .value.green { color: var(--green); }
+    .stat-card .value.orange { color: var(--orange); }
+    .stat-card .value.blue { color: var(--accent); }
+    .stat-card .value.red { color: var(--red); }
+
+    /* Level badges */
+    .level-row {
+      display: flex;
+      gap: 12px;
+      margin-top: 8px;
+    }
+    .level-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 500;
+    }
+    .level-badge.junior { background: rgba(34,197,94,.15); color: var(--green); }
+    .level-badge.middle { background: rgba(59,130,246,.15); color: var(--accent); }
+    .level-badge.senior { background: rgba(239,68,68,.15); color: var(--red); }
+
+    /* Charts */
+    .charts-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      margin-bottom: 32px;
+    }
+    @media (max-width: 900px) {
+      .charts-grid { grid-template-columns: 1fr; }
+    }
+    .chart-card {
+      background: var(--surface);
+      border: 1px solid var(--surface2);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .chart-card h3 {
+      padding: 16px 20px 0;
+      font-size: 15px;
+      font-weight: 600;
+    }
+    .chart-card img {
+      width: 100%;
+      display: block;
+      padding: 12px;
+    }
+    .chart-card.wide {
+      grid-column: 1 / -1;
+    }
+
+    /* Skills Table */
+    .skills-card {
+      background: var(--surface);
+      border: 1px solid var(--surface2);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-bottom: 32px;
+    }
+    .skills-card h3 {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 16px;
+    }
+    .skill-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--surface2);
+    }
+    .skill-row:last-child { border-bottom: none; }
+    .skill-rank {
+      width: 28px;
+      height: 28px;
+      display: grid;
+      place-items: center;
+      border-radius: 6px;
+      background: var(--surface2);
+      font-size: 12px;
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+    .skill-rank.top3 {
+      background: var(--accent);
+      color: #fff;
+    }
+    .skill-name {
+      flex: 1;
+      font-size: 14px;
+      font-weight: 500;
+    }
+    .skill-bar-wrap {
+      flex: 2;
+      height: 8px;
+      background: var(--surface2);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .skill-bar {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), #a78bfa);
+      border-radius: 4px;
+      transition: width .6s ease;
+    }
+    .skill-count {
+      font-size: 13px;
+      color: var(--text2);
+      min-width: 40px;
+      text-align: right;
+    }
+
+    /* Empty state */
+    .empty-state {
+      text-align: center;
+      padding: 80px 24px;
+      color: var(--text2);
+    }
+    .empty-state svg {
+      width: 64px; height: 64px;
+      margin-bottom: 16px;
+      opacity: .4;
+    }
+    .empty-state h2 {
+      color: var(--text);
+      margin-bottom: 8px;
+    }
+
+    /* Footer */
+    footer {
+      padding: 24px 0;
+      margin-top: 40px;
+      border-top: 1px solid var(--surface2);
+      text-align: center;
+      color: var(--text2);
+      font-size: 13px;
+    }
+
+    /* Error */
+    .error-box {
+      background: rgba(239,68,68,.1);
+      border: 1px solid rgba(239,68,68,.3);
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      color: var(--red);
+      margin-bottom: 24px;
+    }
+  </style>
+</head>
+<body>
+  <div class="loading-overlay" id="loader">
+    <div class="spinner-box">
+      <div class="spinner"></div>
+      <p>Анализируем вакансии на hh.ru...</p>
+      <p style="font-size:12px; margin-top:4px;">Это может занять до 30 секунд</p>
+    </div>
+  </div>
+
+  <div class="container">
+    <header>
+      <h1>HH Analyst</h1>
+      <p>Интеллектуальный анализ вакансий с hh.ru — навыки, уровни, тренды по регионам</p>
+    </header>
+
+    <!-- Search -->
+    <div class="search-card">
+      <form id="search-form" method="GET" action="/dashboard">
+        <div class="search-grid">
+          <div class="field">
+            <label for="query">Поисковый запрос</label>
+            <input type="text" id="query" name="query" value="{{ query or '' }}"
+                   placeholder="Например: Python developer, Go разработчик, Data Engineer...">
+          </div>
+          <div class="field">
+            <label for="area">Регион</label>
+            <select id="area" name="area">
+              <option value="" {% if not area %}selected{% endif %}>Все регионы</option>
+              <option value="113" {% if area == '113' %}selected{% endif %}>Россия</option>
+              <option value="1" {% if area == '1' %}selected{% endif %}>Москва</option>
+              <option value="2" {% if area == '2' %}selected{% endif %}>Санкт-Петербург</option>
+              <option value="3" {% if area == '3' %}selected{% endif %}>Екатеринбург</option>
+              <option value="4" {% if area == '4' %}selected{% endif %}>Новосибирск</option>
+              <option value="88" {% if area == '88' %}selected{% endif %}>Казань</option>
+              <option value="66" {% if area == '66' %}selected{% endif %}>Нижний Новгород</option>
+              <option value="104" {% if area == '104' %}selected{% endif %}>Минск</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="max_pages">Страниц</label>
+            <input type="number" id="max_pages" name="max_pages"
+                   value="{{ max_pages or 3 }}" min="1" max="20">
+          </div>
+          <div class="field">
+            <label>&nbsp;</label>
+            <button type="submit" class="btn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+              </svg>
+              Анализ
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+
+    {% if error %}
+    <div class="error-box">{{ error }}</div>
+    {% endif %}
+
+    {% if results %}
+
+    <!-- Stats -->
+    <div class="stats">
+      <div class="stat-card">
+        <div class="label">Найдено вакансий</div>
+        <div class="value blue">{{ results.total_vacancies }}</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Уникальных навыков</div>
+        <div class="value orange">{{ results.top_skills | length }}</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Распределение по уровням</div>
+        <div class="level-row">
+          <span class="level-badge junior">Junior {{ results.level_distribution.junior }}</span>
+          <span class="level-badge middle">Middle {{ results.level_distribution.middle }}</span>
+          <span class="level-badge senior">Senior {{ results.level_distribution.senior }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Charts -->
+    <div class="charts-grid">
+      <div class="chart-card">
+        <h3>Топ навыков</h3>
+        <img src="data:image/png;base64,{{ results.charts.top_skills }}" alt="Top skills chart">
+      </div>
+      <div class="chart-card">
+        <h3>Уровни: Junior / Middle / Senior</h3>
+        <img src="data:image/png;base64,{{ results.charts.level_distribution }}" alt="Level distribution">
+      </div>
+      <div class="chart-card wide">
+        <h3>Востребованность навыков по регионам</h3>
+        <img src="data:image/png;base64,{{ results.charts.skills_by_region }}" alt="Skills by region heatmap">
+      </div>
+    </div>
+
+    <!-- Skills Table -->
+    <div class="skills-card">
+      <h3>Рейтинг навыков</h3>
+      {% set max_count = results.top_skills[0][1] if results.top_skills else 1 %}
+      {% for skill, count in results.top_skills %}
+      <div class="skill-row">
+        <div class="skill-rank {% if loop.index <= 3 %}top3{% endif %}">{{ loop.index }}</div>
+        <div class="skill-name">{{ skill }}</div>
+        <div class="skill-bar-wrap">
+          <div class="skill-bar" style="width: {{ (count / max_count * 100) | round(1) }}%"></div>
+        </div>
+        <div class="skill-count">{{ count }}</div>
+      </div>
+      {% endfor %}
+    </div>
+
+    {% elif not error %}
+    <!-- Empty state -->
+    <div class="empty-state">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5"/>
+      </svg>
+      <h2>Введите запрос для анализа</h2>
+      <p>Укажите профессию или технологию и нажмите «Анализ»</p>
+    </div>
+    {% endif %}
+
+    <footer>
+      HH Analyst &mdash; курсовая работа, вариант 21 &middot; Go + Python + NLP
+    </footer>
+  </div>
+
+  <script>
+    document.getElementById('search-form').addEventListener('submit', function() {
+      document.getElementById('loader').classList.add('active');
+    });
+  </script>
+</body>
+</html>

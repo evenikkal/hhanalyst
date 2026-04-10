@@ -40,9 +40,24 @@ def test_health():
     assert resp.json()["status"] == "ok"
 
 
+def test_index_page():
+    resp = client.get("/")
+    assert resp.status_code == 200
+    assert "HH Analyst" in resp.text
+
+
 @patch("app.fetch_vacancies", new_callable=AsyncMock, return_value=SAMPLE_VACANCIES)
-def test_skills_endpoint(mock_fetch):
-    resp = client.get("/skills?query=python&max_pages=1")
+def test_dashboard(mock_fetch):
+    resp = client.get("/dashboard?query=python&max_pages=1")
+    assert resp.status_code == 200
+    assert "Junior" in resp.text
+    assert "Senior" in resp.text
+    assert "python" in resp.text.lower()
+
+
+@patch("app.fetch_vacancies", new_callable=AsyncMock, return_value=SAMPLE_VACANCIES)
+def test_api_skills(mock_fetch):
+    resp = client.get("/api/skills?query=python&max_pages=1")
     assert resp.status_code == 200
     data = resp.json()
     assert data["total_vacancies"] == 3
@@ -52,8 +67,8 @@ def test_skills_endpoint(mock_fetch):
 
 
 @patch("app.fetch_vacancies", new_callable=AsyncMock, return_value=SAMPLE_VACANCIES)
-def test_levels_endpoint(mock_fetch):
-    resp = client.get("/levels?query=python&max_pages=1")
+def test_api_levels(mock_fetch):
+    resp = client.get("/api/levels?query=python&max_pages=1")
     assert resp.status_code == 200
     data = resp.json()
     dist = data["distribution"]
@@ -63,24 +78,24 @@ def test_levels_endpoint(mock_fetch):
 
 
 @patch("app.fetch_vacancies", new_callable=AsyncMock, return_value=SAMPLE_VACANCIES)
-def test_chart_top_skills(mock_fetch):
-    resp = client.get("/charts/top-skills?query=python&max_pages=1")
+def test_api_chart_top_skills(mock_fetch):
+    resp = client.get("/api/charts/top-skills?query=python&max_pages=1")
     assert resp.status_code == 200
     data = resp.json()
     assert "chart_base64" in data
-    assert len(data["chart_base64"]) > 100  # non-empty PNG
+    assert len(data["chart_base64"]) > 100
 
 
 @patch("app.fetch_vacancies", new_callable=AsyncMock, return_value=SAMPLE_VACANCIES)
-def test_chart_level_distribution(mock_fetch):
-    resp = client.get("/charts/level-distribution?query=python&max_pages=1")
+def test_api_chart_level_distribution(mock_fetch):
+    resp = client.get("/api/charts/level-distribution?query=python&max_pages=1")
     assert resp.status_code == 200
     assert "chart_base64" in resp.json()
 
 
 @patch("app.fetch_vacancies", new_callable=AsyncMock, return_value=SAMPLE_VACANCIES)
-def test_full_analyze(mock_fetch):
-    resp = client.post("/analyze?query=python&max_pages=1")
+def test_api_full_analyze(mock_fetch):
+    resp = client.post("/api/analyze?query=python&max_pages=1")
     assert resp.status_code == 200
     data = resp.json()
     assert "top_skills" in data
