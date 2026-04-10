@@ -1,17 +1,20 @@
-package main
+package handler
 
 import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/evenikkal/hhanalyst/go_collector/internal/hh"
 )
 
 func TestHealthHandler(t *testing.T) {
+	h := New(hh.NewClient())
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
 	w := httptest.NewRecorder()
 
-	healthHandler(w, req)
+	h.Health(w, req)
 
 	resp := w.Result()
 	if resp.StatusCode != http.StatusOK {
@@ -28,11 +31,12 @@ func TestHealthHandler(t *testing.T) {
 	}
 }
 
-func TestVacanciesHandlerMethodNotAllowed(t *testing.T) {
+func TestVacanciesMethodNotAllowed(t *testing.T) {
+	h := New(hh.NewClient())
 	req := httptest.NewRequest(http.MethodPost, "/vacancies", nil)
 	w := httptest.NewRecorder()
 
-	vacanciesHandler(w, req)
+	h.Vacancies(w, req)
 
 	if w.Code != http.StatusMethodNotAllowed {
 		t.Errorf("expected 405, got %d", w.Code)

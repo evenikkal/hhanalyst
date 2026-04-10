@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/evenikkal/hhanalyst/go_collector/models"
+	"github.com/evenikkal/hhanalyst/go_collector/internal/models"
 )
 
 func newTestClient(baseURL string) *Client {
@@ -71,7 +71,7 @@ func TestCollectMultiplePages(t *testing.T) {
 		t.Fatalf("Collect failed: %v", err)
 	}
 	if len(vacancies) != 3 {
-		t.Fatalf("expected 3 vacancies (1 per page × 3 pages), got %d", len(vacancies))
+		t.Fatalf("expected 3 vacancies (1 per page x 3 pages), got %d", len(vacancies))
 	}
 }
 

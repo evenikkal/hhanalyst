@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/evenikkal/hhanalyst/go_collector/models"
+	"github.com/evenikkal/hhanalyst/go_collector/internal/models"
 )
 
 const (
@@ -41,7 +41,7 @@ func NewClient() *Client {
 	return &Client{
 		http:    &http.Client{Timeout: 15 * time.Second, Transport: transport},
 		baseURL: defaultBaseURL,
-		limiter: time.Tick(250 * time.Millisecond), // 4 req/s to stay within limits
+		limiter: time.Tick(250 * time.Millisecond),
 	}
 }
 

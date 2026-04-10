@@ -1,13 +1,13 @@
 package models
 
 type Vacancy struct {
-	ID          string   `json:"id"`
-	Name        string   `json:"name"`
-	Area        Area     `json:"area"`
-	Salary      *Salary  `json:"salary"`
-	Snippet     Snippet  `json:"snippet"`
-	Experience  Exp      `json:"experience"`
-	Description string   `json:"description,omitempty"`
+	ID          string  `json:"id"`
+	Name        string  `json:"name"`
+	Area        Area    `json:"area"`
+	Salary      *Salary `json:"salary"`
+	Snippet     Snippet `json:"snippet"`
+	Experience  Exp     `json:"experience"`
+	Description string  `json:"description,omitempty"`
 }
 
 type Area struct {
@@ -22,7 +22,7 @@ type Salary struct {
 }
 
 type Snippet struct {
-	Requirement  string `json:"requirement"`
+	Requirement    string `json:"requirement"`
 	Responsibility string `json:"responsibility"`
 }
 
