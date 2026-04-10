@@ -1,0 +1,8 @@
+go_collector/go_collector
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+.env
