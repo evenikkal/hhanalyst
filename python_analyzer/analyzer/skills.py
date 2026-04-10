@@ -1,43 +1,73 @@
-"""Skill extraction from vacancy text using keyword matching."""
+"""Skill extraction from vacancy text using NLP-powered keyword matching.
+
+Uses Natasha lemmatization so that inflected Russian text
+('разработкой на Python') still matches skill keywords.
+"""
 
 import re
 from collections import Counter
 from typing import List
 
+from .nlp import lemmatize
+
 KNOWN_SKILLS = [
     # Languages
     "python", "go", "golang", "rust", "java", "kotlin", "scala",
-    "javascript", "typescript", "c++", "c#", ".net", "php", "ruby",
+    "javascript", "typescript", "c++", "c#", ".net", "php", "ruby", "swift",
     # Web / API
     "fastapi", "django", "flask", "gin", "echo", "spring", "react",
-    "vue", "angular", "graphql", "rest", "grpc",
+    "vue", "angular", "graphql", "rest", "grpc", "node.js",
     # Data / ML
     "pandas", "numpy", "scikit-learn", "tensorflow", "pytorch", "keras",
-    "spark", "kafka", "airflow", "dbt", "mlflow",
+    "spark", "kafka", "airflow", "dbt", "mlflow", "opencv",
     # Databases
     "postgresql", "mysql", "mongodb", "redis", "clickhouse", "elasticsearch",
-    "cassandra", "sqlite",
+    "cassandra", "sqlite", "oracle",
     # Infrastructure
     "docker", "kubernetes", "k8s", "terraform", "ansible", "jenkins",
-    "github actions", "gitlab ci", "aws", "gcp", "azure",
-    # Tools
+    "github actions", "gitlab ci", "aws", "gcp", "azure", "ci/cd",
+    # Tools & practices
     "git", "linux", "bash", "prometheus", "grafana", "nginx",
+    "rabbitmq", "celery", "microservices", "agile", "scrum",
 ]
+
+# Russian-language skill aliases (lemmatized forms)
+RU_SKILL_ALIASES = {
+    "микросервис": "microservices",
+    "микросервисный": "microservices",
+    "контейнеризация": "docker",
+    "оркестрация": "kubernetes",
+}
 
 
 def extract_skills(text: str) -> List[str]:
-    """Return list of recognized skills found in text (lowercased, deduped)."""
+    """Return list of recognized skills found in text (lowercased, deduped).
+
+    Uses Natasha lemmatization for better matching of Russian text.
+    """
     if not text:
         return []
+
     text_lower = text.lower()
-    # Remove HTML tags if present
     text_lower = re.sub(r"<[^>]+>", " ", text_lower)
-    found = []
+
+    # Also check lemmatized version for Russian morphology
+    text_lemmatized = lemmatize(text_lower)
+
+    found = set()
+
+    # Match known skills in both raw and lemmatized text
     for skill in KNOWN_SKILLS:
         pattern = r"\b" + re.escape(skill) + r"\b"
-        if re.search(pattern, text_lower):
-            found.append(skill)
-    return found
+        if re.search(pattern, text_lower) or re.search(pattern, text_lemmatized):
+            found.add(skill)
+
+    # Match Russian aliases in lemmatized text
+    for ru_lemma, skill in RU_SKILL_ALIASES.items():
+        if ru_lemma in text_lemmatized:
+            found.add(skill)
+
+    return list(found)
 
 
 def top_skills(vacancies: list, top_n: int = 20) -> List[tuple]:

@@ -10,6 +10,7 @@ from fastapi.templating import Jinja2Templates
 from analyzer.skills import top_skills
 from analyzer.classifier import level_distribution
 from analyzer.charts import skills_by_region_chart, level_distribution_chart, top_skills_bar_chart
+from analyzer.nlp import extract_entities_batch
 
 logger = logging.getLogger("hhanalyst")
 
@@ -62,10 +63,12 @@ async def dashboard(
 
     try:
         vacancies = await fetch_vacancies(query, area, max_pages)
+        entities = extract_entities_batch(vacancies)
         results = {
             "total_vacancies": len(vacancies),
             "top_skills": top_skills(vacancies),
             "level_distribution": level_distribution(vacancies),
+            "entities": entities,
             "charts": {
                 "top_skills": top_skills_bar_chart(vacancies),
                 "level_distribution": level_distribution_chart(vacancies),

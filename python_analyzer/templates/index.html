@@ -282,6 +282,64 @@
       text-align: right;
     }
 
+    /* NER Entities */
+    .ner-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+    .ner-card {
+      background: var(--surface);
+      border: 1px solid var(--surface2);
+      border-radius: var(--radius);
+      padding: 20px;
+    }
+    .ner-card h3 {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .ner-tag {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+    .ner-tag.org { background: rgba(59,130,246,.2); color: var(--accent); }
+    .ner-tag.loc { background: rgba(34,197,94,.2); color: var(--green); }
+    .ner-tag.per { background: rgba(245,158,11,.2); color: var(--orange); }
+    .ner-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 6px 0;
+      border-bottom: 1px solid var(--surface2);
+      font-size: 14px;
+    }
+    .ner-item:last-child { border-bottom: none; }
+    .ner-item-count {
+      color: var(--text2);
+      font-size: 13px;
+    }
+    .nlp-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+      background: rgba(167,139,250,.15);
+      color: #a78bfa;
+      margin-left: 8px;
+    }
+
     /* Empty state */
     .empty-state {
       text-align: center;
@@ -331,7 +389,9 @@
   <div class="container">
     <header>
       <h1>HH Analyst</h1>
-      <p>Интеллектуальный анализ вакансий с hh.ru — навыки, уровни, тренды по регионам</p>
+      <p>Интеллектуальный анализ вакансий с hh.ru — навыки, уровни, тренды по регионам
+        <span class="nlp-badge">NLP: Natasha</span>
+      </p>
     </header>
 
     <!-- Search -->
@@ -434,6 +494,45 @@
         <img src="data:image/png;base64,{{ results.charts.skills_by_region }}" alt="Skills by region heatmap">
       </div>
     </div>
+
+    <!-- NER Entities -->
+    {% if results.entities %}
+    <div class="ner-grid">
+      {% if results.entities.ORG %}
+      <div class="ner-card">
+        <h3><span class="ner-tag org">ORG</span> Компании-работодатели</h3>
+        {% for name, count in results.entities.ORG.items() %}
+        <div class="ner-item">
+          <span>{{ name }}</span>
+          <span class="ner-item-count">{{ count }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+      {% if results.entities.LOC %}
+      <div class="ner-card">
+        <h3><span class="ner-tag loc">LOC</span> Локации из описаний</h3>
+        {% for name, count in results.entities.LOC.items() %}
+        <div class="ner-item">
+          <span>{{ name }}</span>
+          <span class="ner-item-count">{{ count }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+      {% if results.entities.PER %}
+      <div class="ner-card">
+        <h3><span class="ner-tag per">PER</span> Упоминаемые персоны</h3>
+        {% for name, count in results.entities.PER.items() %}
+        <div class="ner-item">
+          <span>{{ name }}</span>
+          <span class="ner-item-count">{{ count }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
 
     <!-- Skills Table -->
     <div class="skills-card">
