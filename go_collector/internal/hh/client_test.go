@@ -10,12 +10,18 @@ import (
 	"github.com/evenikkal/hhanalyst/go_collector/internal/models"
 )
 
+// newTestClient creates a Client with workers pointed at a test server.
 func newTestClient(baseURL string) *Client {
-	return &Client{
+	c := &Client{
 		http:    &http.Client{Timeout: 5 * time.Second},
 		baseURL: baseURL,
 		limiter: time.Tick(1 * time.Millisecond),
+		jobs:    make(chan job, 10),
 	}
+	for i := 0; i < 3; i++ {
+		go c.worker(i)
+	}
+	return c
 }
 
 func TestCollectSinglePage(t *testing.T) {

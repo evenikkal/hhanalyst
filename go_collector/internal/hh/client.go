@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"sync"
@@ -16,19 +17,37 @@ import (
 
 const (
 	defaultBaseURL = "https://api.hh.ru"
-	maxWorkers     = 5
+	poolSize       = 5
 	pageSize       = 100
 )
 
+// job is a unit of work sent to the worker pool.
+type job struct {
+	Query string
+	Area  string
+	Page  int
+	Resp  chan<- jobResult
+}
+
+// jobResult carries the outcome of a single page fetch.
+type jobResult struct {
+	Page  int
+	Items []models.Vacancy
+	Err   error
+}
+
+// Client is an hh.ru API client backed by a persistent worker pool.
+// Workers are started once via NewClient and live for the lifetime of
+// the process, waiting for jobs on an internal channel.
 type Client struct {
 	http    *http.Client
 	baseURL string
 	limiter <-chan time.Time
+	jobs    chan job
 }
 
+// NewClient creates a client and starts poolSize background workers.
 func NewClient() *Client {
-	// Explicitly load the system certificate pool to ensure TLS works
-	// on all platforms (including Windows where the default may fail).
 	pool, err := x509.SystemCertPool()
 	if err != nil || pool == nil {
 		pool = x509.NewCertPool()
@@ -38,15 +57,39 @@ func NewClient() *Client {
 			RootCAs: pool,
 		},
 	}
-	return &Client{
+
+	c := &Client{
 		http:    &http.Client{Timeout: 15 * time.Second, Transport: transport},
 		baseURL: defaultBaseURL,
-		limiter: time.Tick(250 * time.Millisecond),
+		limiter: time.Tick(250 * time.Millisecond), // 4 req/s
+		jobs:    make(chan job, poolSize*2),
+	}
+
+	// Start persistent workers — they block on c.jobs and live forever.
+	for i := 0; i < poolSize; i++ {
+		go c.worker(i)
+	}
+	log.Printf("started %d background workers", poolSize)
+
+	return c
+}
+
+// worker is a long-lived goroutine that pulls jobs from the shared channel.
+func (c *Client) worker(id int) {
+	for j := range c.jobs {
+		result, err := c.fetchPage(j.Query, j.Area, j.Page)
+		if err != nil {
+			j.Resp <- jobResult{Page: j.Page, Err: err}
+		} else {
+			j.Resp <- jobResult{Page: j.Page, Items: result.Items}
+		}
 	}
 }
 
-func (c *Client) searchPage(query, area string, page int) (*models.SearchResponse, error) {
+// fetchPage makes one rate-limited request to hh.ru /vacancies.
+func (c *Client) fetchPage(query, area string, page int) (*models.SearchResponse, error) {
 	<-c.limiter
+
 	params := url.Values{}
 	params.Set("text", query)
 	params.Set("per_page", fmt.Sprintf("%d", pageSize))
@@ -85,9 +128,11 @@ func (c *Client) searchPage(query, area string, page int) (*models.SearchRespons
 	return &result, nil
 }
 
-// Collect fetches up to maxPages pages in parallel for the given query.
+// Collect fetches up to maxPages pages by dispatching work to the pool.
+// The first page is fetched inline to learn the total page count,
+// then remaining pages are fanned out to the background workers.
 func (c *Client) Collect(query, area string, maxPages int) ([]models.Vacancy, error) {
-	first, err := c.searchPage(query, area, 0)
+	first, err := c.fetchPage(query, area, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -104,41 +149,32 @@ func (c *Client) Collect(query, area string, maxPages int) ([]models.Vacancy, er
 		return results[0], nil
 	}
 
-	type job struct {
-		page int
-	}
-	jobs := make(chan job, total-1)
+	// Fan out remaining pages to the worker pool.
+	pending := total - 1
+	respCh := make(chan jobResult, pending)
+
 	for p := 1; p < total; p++ {
-		jobs <- job{p}
+		c.jobs <- job{
+			Query: query,
+			Area:  area,
+			Page:  p,
+			Resp:  respCh,
+		}
 	}
-	close(jobs)
 
+	// Collect results.
 	var mu sync.Mutex
-	var wg sync.WaitGroup
 	var collectErr error
-
-	workers := maxWorkers
-	if total-1 < workers {
-		workers = total - 1
+	for i := 0; i < pending; i++ {
+		r := <-respCh
+		mu.Lock()
+		if r.Err != nil && collectErr == nil {
+			collectErr = r.Err
+		} else if r.Err == nil {
+			results[r.Page] = r.Items
+		}
+		mu.Unlock()
 	}
-
-	for w := 0; w < workers; w++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for j := range jobs {
-				page, err := c.searchPage(query, area, j.page)
-				mu.Lock()
-				if err != nil && collectErr == nil {
-					collectErr = err
-				} else if err == nil {
-					results[j.page] = page.Items
-				}
-				mu.Unlock()
-			}
-		}()
-	}
-	wg.Wait()
 
 	if collectErr != nil {
 		return nil, collectErr
