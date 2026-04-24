@@ -6,7 +6,7 @@ matches level patterns reliably.
 
 import re
 
-from .nlp import lemmatize
+from .nlp import get_lemmatized
 
 JUNIOR_PATTERNS = [
     r"\bjunior\b", r"\bjun\b", r"\bджун\b", r"\bмладший\b",
@@ -49,7 +49,7 @@ def classify_level(vacancy: dict) -> str:
     ])
 
     # Check both raw text (for English keywords) and lemmatized (for Russian)
-    lemmatized = lemmatize(raw_text)
+    lemmatized = get_lemmatized(vacancy)
     combined = raw_text + " " + lemmatized
 
     if _matches(combined, SENIOR_PATTERNS):

@@ -509,21 +509,10 @@
         {% endfor %}
       </div>
       {% endif %}
-      {% if results.entities.LOC %}
+      {% if results.entities.ROLE %}
       <div class="ner-card">
-        <h3><span class="ner-tag loc">LOC</span> Локации из описаний</h3>
-        {% for name, count in results.entities.LOC.items() %}
-        <div class="ner-item">
-          <span>{{ name }}</span>
-          <span class="ner-item-count">{{ count }}</span>
-        </div>
-        {% endfor %}
-      </div>
-      {% endif %}
-      {% if results.entities.PER %}
-      <div class="ner-card">
-        <h3><span class="ner-tag per">PER</span> Упоминаемые персоны</h3>
-        {% for name, count in results.entities.PER.items() %}
+        <h3><span class="ner-tag per">ROLE</span> Упоминаемые должности</h3>
+        {% for name, count in results.entities.ROLE.items() %}
         <div class="ner-item">
           <span>{{ name }}</span>
           <span class="ner-item-count">{{ count }}</span>

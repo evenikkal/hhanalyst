@@ -49,12 +49,7 @@ def skills_by_region_chart(vacancies: list, top_skills: int = 10, top_regions: i
 
     for v in vacancies:
         region = v.get("area", {}).get("name", "Unknown")
-        text = " ".join([
-            v.get("name", ""),
-            v.get("snippet", {}).get("requirement", "") or "",
-            v.get("description", "") or "",
-        ])
-        for skill in extract_skills(text):
+        for skill in extract_skills(v):
             region_skill[region][skill] += 1
 
     region_counts = Counter({r: sum(c.values()) for r, c in region_skill.items()})
@@ -125,12 +120,7 @@ def top_skills_bar_chart(vacancies: list, top_n: int = 15) -> str:
     """Horizontal bar chart of top N skills. Returns base64 PNG."""
     counter: Counter = Counter()
     for v in vacancies:
-        text = " ".join([
-            v.get("name", ""),
-            v.get("snippet", {}).get("requirement", "") or "",
-            v.get("description", "") or "",
-        ])
-        for skill in extract_skills(text):
+        for skill in extract_skills(v):
             counter[skill] += 1
 
     if not counter:

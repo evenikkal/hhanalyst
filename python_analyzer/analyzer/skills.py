@@ -8,7 +8,7 @@ import re
 from collections import Counter
 from typing import List
 
-from .nlp import lemmatize
+from .nlp import get_lemmatized
 
 KNOWN_SKILLS = [
     # Languages
@@ -40,19 +40,24 @@ RU_SKILL_ALIASES = {
 }
 
 
-def extract_skills(text: str) -> List[str]:
-    """Return list of recognized skills found in text (lowercased, deduped).
+def extract_skills(vacancy: dict) -> List[str]:
+    """Return list of recognized skills found in a vacancy (deduped).
 
-    Uses Natasha lemmatization for better matching of Russian text.
+    Uses pre-computed Natasha lemmatization for Russian morphology matching.
     """
-    if not text:
-        return []
-
-    text_lower = text.lower()
+    text_lower = " ".join([
+        vacancy.get("name", ""),
+        vacancy.get("snippet", {}).get("requirement", "") or "",
+        vacancy.get("snippet", {}).get("responsibility", "") or "",
+        vacancy.get("description", "") or "",
+    ]).lower()
     text_lower = re.sub(r"<[^>]+>", " ", text_lower)
 
-    # Also check lemmatized version for Russian morphology
-    text_lemmatized = lemmatize(text_lower)
+    if not text_lower.strip():
+        return []
+
+    # Use pre-computed lemmatized text (from preprocess_vacancies)
+    text_lemmatized = get_lemmatized(vacancy).lower()
 
     found = set()
 
@@ -74,12 +79,6 @@ def top_skills(vacancies: list, top_n: int = 20) -> List[tuple]:
     """Return top_n (skill, count) pairs across all vacancies."""
     counter: Counter = Counter()
     for v in vacancies:
-        text = " ".join([
-            v.get("name", ""),
-            v.get("snippet", {}).get("requirement", "") or "",
-            v.get("snippet", {}).get("responsibility", "") or "",
-            v.get("description", "") or "",
-        ])
-        for skill in extract_skills(text):
+        for skill in extract_skills(v):
             counter[skill] += 1
     return counter.most_common(top_n)
