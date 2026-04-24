@@ -1,19 +1,10 @@
 version: "3.9"
 
 services:
-  go_collector:
-    build: ./go_collector
-    ports:
-      - "8082:8082"
-    # scratch image has no shell — healthcheck via external probe only
-    restart: unless-stopped
-
   python_analyzer:
     build: ./python_analyzer
     ports:
       - "8090:8090"
-    depends_on:
-      - go_collector
     environment:
       - COLLECTOR_URL=http://go_collector:8082
     healthcheck:
@@ -22,4 +13,12 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+    restart: unless-stopped
+
+  go_collector:
+    build: ./go_collector
+    ports:
+      - "8082:8082"
+    profiles:
+      - with-collector
     restart: unless-stopped

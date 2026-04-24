@@ -9,5 +9,3 @@ natasha==1.6.0
 pymorphy3>=2.0
 pymorphy3-dicts-ru
 setuptools
-pytest==8.3.3
-pytest-asyncio==0.24.0
