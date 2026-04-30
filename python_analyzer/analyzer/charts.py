@@ -13,30 +13,30 @@ import matplotlib.colors as mcolors
 from .skills import extract_skills
 from .classifier import classify_level
 
-# Dark theme matching the web UI
 DARK_BG = "#1e293b"
 DARK_TEXT = "#f1f5f9"
 DARK_GRID = "#334155"
 ACCENT = "#3b82f6"
 ACCENT2 = "#a78bfa"
+TRANSPARENT = (0, 0, 0, 0)
 
 plt.rcParams.update({
-    "figure.facecolor": DARK_BG,
-    "axes.facecolor": DARK_BG,
+    "figure.facecolor": TRANSPARENT,
+    "axes.facecolor": TRANSPARENT,
     "axes.edgecolor": DARK_GRID,
     "axes.labelcolor": DARK_TEXT,
     "text.color": DARK_TEXT,
     "xtick.color": DARK_TEXT,
     "ytick.color": DARK_TEXT,
     "grid.color": DARK_GRID,
-    "savefig.facecolor": DARK_BG,
+    "savefig.facecolor": TRANSPARENT,
     "font.size": 11,
 })
 
 
 def _fig_to_base64(fig) -> str:
     buf = io.BytesIO()
-    fig.savefig(buf, format="png", dpi=130, pad_inches=0.3)
+    fig.savefig(buf, format="png", dpi=140, pad_inches=0.3, transparent=True)
     buf.seek(0)
     data = base64.b64encode(buf.read()).decode()
     plt.close(fig)
@@ -70,14 +70,13 @@ def skills_by_region_chart(vacancies: list, top_skills: int = 10, top_regions: i
     data = [[region_skill[r].get(s, 0) for r in regions] for s in skills]
 
     fig, ax = plt.subplots(figsize=(max(8, len(regions) * 2), max(5, len(skills) * 0.55)))
-    cmap = mcolors.LinearSegmentedColormap.from_list("custom", [DARK_BG, ACCENT, "#f59e0b"])
+    cmap = mcolors.LinearSegmentedColormap.from_list("custom", ["#0b1120", "#1e3a5f", ACCENT, ACCENT2, "#e879f9"])
     im = ax.imshow(data, aspect="auto", cmap=cmap)
     ax.set_xticks(range(len(regions)))
     ax.set_xticklabels(regions, rotation=25, ha="right", fontsize=10)
     ax.set_yticks(range(len(skills)))
     ax.set_yticklabels(skills, fontsize=10)
 
-    # Add value annotations
     for i in range(len(skills)):
         for j in range(len(regions)):
             val = data[i][j]
@@ -86,33 +85,39 @@ def skills_by_region_chart(vacancies: list, top_skills: int = 10, top_regions: i
                         fontsize=9, fontweight="bold", color="#fff")
 
     cbar = plt.colorbar(im, ax=ax, fraction=0.03, pad=0.04)
-    cbar.set_label("Vacancies", fontsize=10)
-    ax.set_title("Skill demand by region", fontsize=14, fontweight="bold", pad=12)
+    cbar.set_label("Вакансий", fontsize=10)
+    ax.set_title("Востребованность по регионам", fontsize=14, fontweight="bold", pad=12)
+    fig.tight_layout()
     return _fig_to_base64(fig)
 
 
 def level_distribution_chart(vacancies: list) -> str:
-    """Pie chart of junior/middle/senior distribution. Returns base64 PNG."""
-    dist: dict = {"Junior": 0, "Middle": 0, "Senior": 0}
+    """Donut chart of intern/junior/middle/senior distribution. Returns base64 PNG."""
+    dist: dict = {"Intern": 0, "Junior": 0, "Middle": 0, "Senior": 0}
     for v in vacancies:
         level = classify_level(v)
         dist[level.capitalize()] += 1
 
-    labels = list(dist.keys())
+    labels = [l for l in dist if dist[l] > 0]
     sizes = [dist[l] for l in labels]
-    colors = ["#22c55e", "#3b82f6", "#ef4444"]
-    explode = (0.03, 0.03, 0.03)
+    total = sum(sizes)
+    color_map = {"Intern": "#06b6d4", "Junior": "#22c55e", "Middle": "#3b82f6", "Senior": "#ef4444"}
+    colors = [color_map[l] for l in labels]
 
     fig, ax = plt.subplots(figsize=(6, 5))
     wedges, texts, autotexts = ax.pie(
-        sizes, labels=labels, colors=colors, autopct=lambda p: f"{p:.1f}%\n({int(p*sum(sizes)/100)})",
-        startangle=140, explode=explode, textprops={"fontsize": 12},
-        wedgeprops={"edgecolor": DARK_BG, "linewidth": 2},
+        sizes, labels=labels, colors=colors,
+        autopct=lambda p: f"{p:.0f}%\n({int(p*total/100)})",
+        startangle=140, pctdistance=0.78,
+        textprops={"fontsize": 12, "fontweight": "bold"},
+        wedgeprops={"width": 0.45, "edgecolor": "none", "linewidth": 0},
     )
     for t in autotexts:
-        t.set_fontsize(11)
+        t.set_fontsize(10)
         t.set_fontweight("bold")
-    ax.set_title("Level distribution", fontsize=14, fontweight="bold", pad=16)
+    centre = plt.Circle((0, 0), 0.55, fc='none')
+    ax.add_patch(centre)
+    ax.set_title("Распределение по уровням", fontsize=14, fontweight="bold", pad=16)
     return _fig_to_base64(fig)
 
 
@@ -125,7 +130,7 @@ def top_skills_bar_chart(vacancies: list, top_n: int = 15) -> str:
 
     if not counter:
         fig, ax = plt.subplots(figsize=(6, 3))
-        ax.text(0.5, 0.5, "Not enough data", ha="center", va="center",
+        ax.text(0.5, 0.5, "Недостаточно данных", ha="center", va="center",
                 fontsize=16, color="#94a3b8")
         ax.set_axis_off()
         return _fig_to_base64(fig)
@@ -135,21 +140,25 @@ def top_skills_bar_chart(vacancies: list, top_n: int = 15) -> str:
     counts = [i[1] for i in reversed(items)]
     max_count = max(counts) if counts else 1
 
-    # Gradient-like coloring based on value
-    colors = [mcolors.to_hex(plt.cm.cool(c / max_count * 0.8 + 0.2)) for c in counts]
+    cmap = mcolors.LinearSegmentedColormap.from_list("bar", [ACCENT, ACCENT2, "#e879f9"])
+    colors = [mcolors.to_hex(cmap(c / max_count * 0.85 + 0.15)) for c in counts]
 
-    fig, ax = plt.subplots(figsize=(8, max(4, len(items) * 0.4)))
-    bars = ax.barh(skills, counts, color=colors, height=0.7, edgecolor="none")
+    fig, ax = plt.subplots(figsize=(8, max(4, len(items) * 0.42)))
+    bars = ax.barh(skills, counts, color=colors, height=0.65, edgecolor="none",
+                   zorder=3)
 
-    # Value labels
     for bar, count in zip(bars, counts):
         ax.text(bar.get_width() + max_count * 0.02, bar.get_y() + bar.get_height() / 2,
                 str(count), va="center", fontsize=10, fontweight="bold", color=DARK_TEXT)
 
-    ax.set_xlabel("Number of vacancies", fontsize=11)
-    ax.set_title(f"Top {min(top_n, len(items))} in-demand skills", fontsize=14, fontweight="bold", pad=12)
+    ax.set_xlabel("Количество вакансий", fontsize=11)
+    ax.set_title(f"Топ-{min(top_n, len(items))} востребованных навыков",
+                 fontsize=14, fontweight="bold", pad=12)
     ax.set_xlim(0, max_count * 1.15)
-    ax.grid(axis="x", alpha=0.2)
+    ax.grid(axis="x", alpha=0.15, zorder=0)
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
+    ax.spines["bottom"].set_alpha(0.3)
+    ax.spines["left"].set_alpha(0.3)
+    fig.tight_layout()
     return _fig_to_base64(fig)

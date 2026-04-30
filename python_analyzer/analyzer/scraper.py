@@ -141,6 +141,7 @@ async def _fetch_vacancy_detail(
             info = _parse_vacancy_page(resp.text)
             vacancy["description"] = info["description"]
             if info["skills"]:
+                vacancy["key_skills"] = [{"name": s} for s in info["skills"]]
                 vacancy["snippet"]["requirement"] = ", ".join(info["skills"])
         except Exception as exc:
             logger.debug("Failed to fetch %s: %s", url, exc)

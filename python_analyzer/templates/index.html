@@ -5,21 +5,24 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>HH Analyst — Анализ вакансий hh.ru</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #0f172a;
-      --surface: #1e293b;
+      --bg: #0b1120;
+      --surface: rgba(30, 41, 59, .65);
+      --surface-solid: #1e293b;
       --surface2: #334155;
-      --border: #475569;
+      --border: rgba(71, 85, 105, .45);
       --text: #f1f5f9;
       --text2: #94a3b8;
       --accent: #3b82f6;
       --accent-hover: #2563eb;
+      --accent-glow: rgba(59, 130, 246, .25);
+      --purple: #a78bfa;
       --green: #22c55e;
       --orange: #f59e0b;
       --red: #ef4444;
-      --radius: 12px;
+      --radius: 16px;
     }
 
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -30,6 +33,9 @@
       color: var(--text);
       min-height: 100vh;
       line-height: 1.6;
+      background-image:
+        radial-gradient(ellipse 80% 50% at 50% -20%, rgba(59,130,246,.12), transparent),
+        radial-gradient(ellipse 60% 40% at 80% 60%, rgba(167,139,250,.07), transparent);
     }
 
     .container {
@@ -38,37 +44,80 @@
       padding: 0 24px;
     }
 
+    /* Shared card glass effect */
+    .glass {
+      background: var(--surface);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      transition: border-color .3s, box-shadow .3s, transform .25s;
+    }
+    .glass:hover {
+      border-color: rgba(59,130,246,.3);
+      box-shadow: 0 0 24px rgba(59,130,246,.08);
+    }
+
+    /* Entrance animations */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .animate-in {
+      animation: fadeUp .5s ease both;
+    }
+    .delay-1 { animation-delay: .07s; }
+    .delay-2 { animation-delay: .14s; }
+    .delay-3 { animation-delay: .21s; }
+    .delay-4 { animation-delay: .28s; }
+    .delay-5 { animation-delay: .35s; }
+    .delay-6 { animation-delay: .42s; }
+
     /* Header */
     header {
-      padding: 32px 0 16px;
-      border-bottom: 1px solid var(--surface2);
-      margin-bottom: 32px;
+      padding: 40px 0 20px;
+      margin-bottom: 36px;
+      position: relative;
+    }
+    header::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--accent), var(--purple), transparent);
+      opacity: .4;
     }
     header h1 {
-      font-size: 28px;
-      font-weight: 700;
-      background: linear-gradient(135deg, var(--accent), #a78bfa);
+      font-size: 32px;
+      font-weight: 800;
+      letter-spacing: -.5px;
+      background: linear-gradient(135deg, var(--accent), var(--purple), #e879f9);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
+      background-size: 200% 200%;
+      animation: gradientShift 6s ease infinite;
+    }
+    @keyframes gradientShift {
+      0%, 100% { background-position: 0% 50%; }
+      50%      { background-position: 100% 50%; }
     }
     header p {
       color: var(--text2);
       font-size: 14px;
-      margin-top: 4px;
+      margin-top: 6px;
     }
 
     /* Search Form */
     .search-card {
-      background: var(--surface);
-      border: 1px solid var(--surface2);
-      border-radius: var(--radius);
-      padding: 24px;
-      margin-bottom: 32px;
+      padding: 28px;
+      margin-bottom: 36px;
     }
     .search-grid {
       display: grid;
       grid-template-columns: 1fr 200px 120px auto;
-      gap: 12px;
+      gap: 14px;
       align-items: end;
     }
     @media (max-width: 768px) {
@@ -76,48 +125,58 @@
     }
     .field label {
       display: block;
-      font-size: 13px;
-      font-weight: 500;
+      font-size: 12px;
+      font-weight: 600;
       color: var(--text2);
       margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: .5px;
     }
     .field input, .field select {
       width: 100%;
-      padding: 10px 14px;
-      background: var(--bg);
+      padding: 11px 16px;
+      background: rgba(11, 17, 32, .6);
       border: 1px solid var(--border);
-      border-radius: 8px;
+      border-radius: 10px;
       color: var(--text);
       font-size: 14px;
       font-family: inherit;
       outline: none;
-      transition: border-color .2s;
+      transition: border-color .2s, box-shadow .2s;
     }
     .field input:focus, .field select:focus {
       border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-glow);
     }
+    .field input::placeholder { color: var(--text2); opacity: .6; }
     .btn {
       display: inline-flex;
       align-items: center;
       justify-content: center;
       gap: 8px;
-      padding: 10px 24px;
-      background: var(--accent);
+      padding: 11px 28px;
+      background: linear-gradient(135deg, var(--accent), #6366f1);
       color: #fff;
       border: none;
-      border-radius: 8px;
+      border-radius: 10px;
       font-size: 14px;
       font-weight: 600;
       font-family: inherit;
       cursor: pointer;
-      transition: background .2s;
+      transition: transform .15s, box-shadow .2s;
       white-space: nowrap;
-      height: 42px;
+      height: 44px;
+      box-shadow: 0 4px 16px rgba(59,130,246,.3);
     }
-    .btn:hover { background: var(--accent-hover); }
+    .btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 24px rgba(59,130,246,.4);
+    }
+    .btn:active { transform: translateY(0); }
     .btn:disabled {
       opacity: .5;
       cursor: not-allowed;
+      transform: none;
     }
     .btn svg { width: 18px; height: 18px; }
 
@@ -126,7 +185,8 @@
       display: none;
       position: fixed;
       inset: 0;
-      background: rgba(15, 23, 42, 0.8);
+      background: rgba(11, 17, 32, 0.85);
+      backdrop-filter: blur(8px);
       z-index: 100;
       place-items: center;
     }
@@ -136,9 +196,10 @@
       color: var(--text2);
     }
     .spinner {
-      width: 48px; height: 48px;
-      border: 4px solid var(--surface2);
+      width: 52px; height: 52px;
+      border: 3px solid transparent;
       border-top-color: var(--accent);
+      border-right-color: var(--purple);
       border-radius: 50%;
       animation: spin .8s linear infinite;
       margin: 0 auto 16px;
@@ -150,22 +211,35 @@
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
       gap: 16px;
-      margin-bottom: 32px;
+      margin-bottom: 36px;
     }
     .stat-card {
-      background: var(--surface);
-      border: 1px solid var(--surface2);
-      border-radius: var(--radius);
-      padding: 20px;
+      padding: 22px;
+      position: relative;
+      overflow: hidden;
     }
+    .stat-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0;
+      width: 4px; height: 100%;
+      border-radius: 0 4px 4px 0;
+    }
+    .stat-card:nth-child(1)::before { background: var(--accent); }
+    .stat-card:nth-child(2)::before { background: var(--orange); }
+    .stat-card:nth-child(3)::before { background: var(--green); }
     .stat-card .label {
-      font-size: 13px;
+      font-size: 12px;
+      font-weight: 600;
       color: var(--text2);
-      margin-bottom: 4px;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: .5px;
     }
     .stat-card .value {
-      font-size: 28px;
-      font-weight: 700;
+      font-size: 32px;
+      font-weight: 800;
+      letter-spacing: -.5px;
     }
     .stat-card .value.green { color: var(--green); }
     .stat-card .value.orange { color: var(--orange); }
@@ -175,42 +249,60 @@
     /* Level badges */
     .level-row {
       display: flex;
-      gap: 12px;
-      margin-top: 8px;
+      gap: 10px;
+      margin-top: 10px;
+      flex-wrap: wrap;
     }
     .level-badge {
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      padding: 4px 10px;
+      padding: 5px 14px;
       border-radius: 20px;
       font-size: 13px;
-      font-weight: 500;
+      font-weight: 600;
     }
-    .level-badge.junior { background: rgba(34,197,94,.15); color: var(--green); }
-    .level-badge.middle { background: rgba(59,130,246,.15); color: var(--accent); }
-    .level-badge.senior { background: rgba(239,68,68,.15); color: var(--red); }
+    .level-badge.intern { background: rgba(6,182,212,.12); color: #06b6d4; border: 1px solid rgba(6,182,212,.2); }
+    .level-badge.junior { background: rgba(34,197,94,.12); color: var(--green); border: 1px solid rgba(34,197,94,.2); }
+    .level-badge.middle { background: rgba(59,130,246,.12); color: var(--accent); border: 1px solid rgba(59,130,246,.2); }
+    .level-badge.senior { background: rgba(239,68,68,.12); color: var(--red); border: 1px solid rgba(239,68,68,.2); }
+
+    /* Section titles */
+    .section-title {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .section-title::before {
+      content: '';
+      width: 3px; height: 20px;
+      border-radius: 2px;
+      background: linear-gradient(180deg, var(--accent), var(--purple));
+    }
 
     /* Charts */
     .charts-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 24px;
-      margin-bottom: 32px;
+      gap: 20px;
+      margin-bottom: 36px;
     }
     @media (max-width: 900px) {
       .charts-grid { grid-template-columns: 1fr; }
     }
     .chart-card {
-      background: var(--surface);
-      border: 1px solid var(--surface2);
-      border-radius: var(--radius);
       overflow: hidden;
     }
     .chart-card h3 {
-      padding: 16px 20px 0;
-      font-size: 15px;
+      padding: 18px 22px 0;
+      font-size: 14px;
       font-weight: 600;
+      color: var(--text2);
+      text-transform: uppercase;
+      letter-spacing: .5px;
     }
     .chart-card img {
       width: 100%;
@@ -223,39 +315,52 @@
 
     /* Skills Table */
     .skills-card {
-      background: var(--surface);
-      border: 1px solid var(--surface2);
-      border-radius: var(--radius);
-      padding: 20px;
-      margin-bottom: 32px;
+      padding: 24px;
+      margin-bottom: 36px;
     }
     .skills-card h3 {
-      font-size: 15px;
-      font-weight: 600;
-      margin-bottom: 16px;
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .skills-card h3::before {
+      content: '';
+      width: 3px; height: 20px;
+      border-radius: 2px;
+      background: linear-gradient(180deg, var(--accent), var(--purple));
     }
     .skill-row {
       display: flex;
       align-items: center;
       gap: 12px;
-      padding: 8px 0;
-      border-bottom: 1px solid var(--surface2);
+      padding: 10px 8px;
+      border-radius: 8px;
+      transition: background .2s;
     }
-    .skill-row:last-child { border-bottom: none; }
+    .skill-row:hover {
+      background: rgba(59,130,246,.05);
+    }
+    .skill-row + .skill-row {
+      border-top: 1px solid rgba(51, 65, 85, .4);
+    }
     .skill-rank {
-      width: 28px;
-      height: 28px;
+      width: 30px;
+      height: 30px;
       display: grid;
       place-items: center;
-      border-radius: 6px;
+      border-radius: 8px;
       background: var(--surface2);
       font-size: 12px;
-      font-weight: 600;
+      font-weight: 700;
       flex-shrink: 0;
     }
     .skill-rank.top3 {
-      background: var(--accent);
+      background: linear-gradient(135deg, var(--accent), #6366f1);
       color: #fff;
+      box-shadow: 0 2px 8px rgba(59,130,246,.3);
     }
     .skill-name {
       flex: 1;
@@ -264,20 +369,22 @@
     }
     .skill-bar-wrap {
       flex: 2;
-      height: 8px;
-      background: var(--surface2);
-      border-radius: 4px;
+      height: 6px;
+      background: rgba(51, 65, 85, .5);
+      border-radius: 3px;
       overflow: hidden;
     }
     .skill-bar {
       height: 100%;
-      background: linear-gradient(90deg, var(--accent), #a78bfa);
-      border-radius: 4px;
-      transition: width .6s ease;
+      background: linear-gradient(90deg, var(--accent), var(--purple));
+      border-radius: 3px;
+      width: 0;
+      transition: width .8s cubic-bezier(.4,0,.2,1);
     }
     .skill-count {
       font-size: 13px;
       color: var(--text2);
+      font-weight: 600;
       min-width: 40px;
       text-align: right;
     }
@@ -287,94 +394,123 @@
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
       gap: 16px;
-      margin-bottom: 32px;
+      margin-bottom: 36px;
     }
     .ner-card {
-      background: var(--surface);
-      border: 1px solid var(--surface2);
-      border-radius: var(--radius);
-      padding: 20px;
+      padding: 22px;
     }
     .ner-card h3 {
       font-size: 15px;
       font-weight: 600;
-      margin-bottom: 12px;
+      margin-bottom: 14px;
       display: flex;
       align-items: center;
       gap: 8px;
     }
     .ner-tag {
       display: inline-block;
-      padding: 2px 8px;
-      border-radius: 4px;
-      font-size: 11px;
+      padding: 3px 10px;
+      border-radius: 6px;
+      font-size: 10px;
       font-weight: 700;
-      letter-spacing: 0.5px;
+      letter-spacing: .8px;
+      text-transform: uppercase;
     }
-    .ner-tag.org { background: rgba(59,130,246,.2); color: var(--accent); }
-    .ner-tag.loc { background: rgba(34,197,94,.2); color: var(--green); }
-    .ner-tag.per { background: rgba(245,158,11,.2); color: var(--orange); }
+    .ner-tag.org { background: rgba(59,130,246,.15); color: var(--accent); border: 1px solid rgba(59,130,246,.25); }
+    .ner-tag.loc { background: rgba(34,197,94,.15); color: var(--green); border: 1px solid rgba(34,197,94,.25); }
+    .ner-tag.per { background: rgba(245,158,11,.15); color: var(--orange); border: 1px solid rgba(245,158,11,.25); }
     .ner-item {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 6px 0;
-      border-bottom: 1px solid var(--surface2);
+      padding: 8px 8px;
+      border-radius: 6px;
       font-size: 14px;
+      transition: background .2s;
     }
-    .ner-item:last-child { border-bottom: none; }
+    .ner-item:hover { background: rgba(59,130,246,.05); }
+    .ner-item + .ner-item {
+      border-top: 1px solid rgba(51, 65, 85, .3);
+    }
     .ner-item-count {
       color: var(--text2);
       font-size: 13px;
+      font-weight: 600;
+      background: var(--surface2);
+      padding: 2px 10px;
+      border-radius: 12px;
     }
     .nlp-badge {
       display: inline-flex;
       align-items: center;
       gap: 4px;
-      padding: 3px 10px;
+      padding: 4px 12px;
       border-radius: 20px;
       font-size: 11px;
       font-weight: 600;
-      background: rgba(167,139,250,.15);
+      background: rgba(167,139,250,.12);
       color: #a78bfa;
+      border: 1px solid rgba(167,139,250,.2);
       margin-left: 8px;
     }
 
     /* Empty state */
     .empty-state {
       text-align: center;
-      padding: 80px 24px;
+      padding: 100px 24px;
       color: var(--text2);
     }
     .empty-state svg {
-      width: 64px; height: 64px;
-      margin-bottom: 16px;
-      opacity: .4;
+      width: 72px; height: 72px;
+      margin-bottom: 20px;
+      opacity: .3;
+      stroke: var(--accent);
     }
     .empty-state h2 {
       color: var(--text);
       margin-bottom: 8px;
+      font-weight: 700;
+    }
+    .empty-state p {
+      max-width: 400px;
+      margin: 0 auto;
     }
 
     /* Footer */
     footer {
-      padding: 24px 0;
-      margin-top: 40px;
-      border-top: 1px solid var(--surface2);
+      padding: 28px 0;
+      margin-top: 48px;
       text-align: center;
       color: var(--text2);
       font-size: 13px;
+      position: relative;
+    }
+    footer::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--surface2), transparent);
     }
 
     /* Error */
     .error-box {
-      background: rgba(239,68,68,.1);
-      border: 1px solid rgba(239,68,68,.3);
+      background: rgba(239,68,68,.08);
+      border: 1px solid rgba(239,68,68,.25);
       border-radius: var(--radius);
       padding: 16px 20px;
       color: var(--red);
       margin-bottom: 24px;
+      backdrop-filter: blur(8px);
     }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 8px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--surface2); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--border); }
   </style>
 </head>
 <body>
@@ -395,7 +531,7 @@
     </header>
 
     <!-- Search -->
-    <div class="search-card">
+    <div class="search-card glass animate-in">
       <form id="search-form" method="GET" action="/dashboard">
         <div class="search-grid">
           <div class="field">
@@ -461,17 +597,18 @@
 
     <!-- Stats -->
     <div class="stats">
-      <div class="stat-card">
+      <div class="stat-card glass animate-in delay-1">
         <div class="label">Найдено вакансий</div>
         <div class="value blue">{{ results.total_vacancies }}</div>
       </div>
-      <div class="stat-card">
+      <div class="stat-card glass animate-in delay-2">
         <div class="label">Уникальных навыков</div>
         <div class="value orange">{{ results.top_skills | length }}</div>
       </div>
-      <div class="stat-card">
+      <div class="stat-card glass animate-in delay-3">
         <div class="label">Распределение по уровням</div>
         <div class="level-row">
+          <span class="level-badge intern">Intern {{ results.level_distribution.intern }}</span>
           <span class="level-badge junior">Junior {{ results.level_distribution.junior }}</span>
           <span class="level-badge middle">Middle {{ results.level_distribution.middle }}</span>
           <span class="level-badge senior">Senior {{ results.level_distribution.senior }}</span>
@@ -481,15 +618,15 @@
 
     <!-- Charts -->
     <div class="charts-grid">
-      <div class="chart-card">
+      <div class="chart-card glass animate-in delay-3">
         <h3>Топ навыков</h3>
         <img src="data:image/png;base64,{{ results.charts.top_skills }}" alt="Top skills chart">
       </div>
-      <div class="chart-card">
+      <div class="chart-card glass animate-in delay-4">
         <h3>Уровни: Junior / Middle / Senior</h3>
         <img src="data:image/png;base64,{{ results.charts.level_distribution }}" alt="Level distribution">
       </div>
-      <div class="chart-card wide">
+      <div class="chart-card glass wide animate-in delay-5">
         <h3>Востребованность навыков по регионам</h3>
         <img src="data:image/png;base64,{{ results.charts.skills_by_region }}" alt="Skills by region heatmap">
       </div>
@@ -499,7 +636,7 @@
     {% if results.entities %}
     <div class="ner-grid">
       {% if results.entities.ORG %}
-      <div class="ner-card">
+      <div class="ner-card glass animate-in delay-4">
         <h3><span class="ner-tag org">ORG</span> Компании-работодатели</h3>
         {% for name, count in results.entities.ORG.items() %}
         <div class="ner-item">
@@ -510,7 +647,7 @@
       </div>
       {% endif %}
       {% if results.entities.ROLE %}
-      <div class="ner-card">
+      <div class="ner-card glass animate-in delay-5">
         <h3><span class="ner-tag per">ROLE</span> Упоминаемые должности</h3>
         {% for name, count in results.entities.ROLE.items() %}
         <div class="ner-item">
@@ -524,7 +661,7 @@
     {% endif %}
 
     <!-- Skills Table -->
-    <div class="skills-card">
+    <div class="skills-card glass animate-in delay-6">
       <h3>Рейтинг навыков</h3>
       {% set max_count = results.top_skills[0][1] if results.top_skills else 1 %}
       {% for skill, count in results.top_skills %}
@@ -532,7 +669,7 @@
         <div class="skill-rank {% if loop.index <= 3 %}top3{% endif %}">{{ loop.index }}</div>
         <div class="skill-name">{{ skill }}</div>
         <div class="skill-bar-wrap">
-          <div class="skill-bar" style="width: {{ (count / max_count * 100) | round(1) }}%"></div>
+          <div class="skill-bar" data-width="{{ (count / max_count * 100) | round(1) }}%"></div>
         </div>
         <div class="skill-count">{{ count }}</div>
       </div>
@@ -558,6 +695,14 @@
   <script>
     document.getElementById('search-form').addEventListener('submit', function() {
       document.getElementById('loader').classList.add('active');
+    });
+
+    document.addEventListener('DOMContentLoaded', function() {
+      setTimeout(function() {
+        document.querySelectorAll('.skill-bar').forEach(function(bar) {
+          bar.style.width = bar.getAttribute('data-width');
+        });
+      }, 400);
     });
   </script>
 </body>

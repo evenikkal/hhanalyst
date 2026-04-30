@@ -1,4 +1,4 @@
-"""Classify vacancy seniority level: junior / middle / senior.
+"""Classify vacancy seniority level: intern / junior / middle / senior.
 
 Uses Natasha lemmatization so inflected Russian ('старшего разработчика')
 matches level patterns reliably.
@@ -8,9 +8,14 @@ import re
 
 from .nlp import get_lemmatized
 
+INTERN_PATTERNS = [
+    r"\bстажёр\b", r"\bстажер\b", r"\bintern\b", r"\bстажировка\b",
+    r"\binternship\b", r"\btrainee\b",
+]
+
 JUNIOR_PATTERNS = [
     r"\bjunior\b", r"\bjun\b", r"\bджун\b", r"\bмладший\b",
-    r"\bстажёр\b", r"\bстажер\b", r"\bintern\b", r"\bentry.?level\b",
+    r"\bentry.?level\b",
     r"опыт.{0,20}(не требоваться|без опыт|от 0)",
     r"(0|без).{0,10}(лет|год).{0,10}опыт",
 ]
@@ -38,28 +43,25 @@ def _matches(text: str, patterns: list) -> bool:
 
 
 def classify_level(vacancy: dict) -> str:
-    """Return 'junior', 'middle', or 'senior' for a vacancy dict.
-
-    Lemmatizes Russian text via Natasha for better pattern matching.
-    """
+    """Return 'intern', 'junior', 'middle', or 'senior' for a vacancy dict."""
     raw_text = " ".join([
         vacancy.get("name", ""),
         vacancy.get("snippet", {}).get("requirement", "") or "",
         vacancy.get("experience", {}).get("name", "") or "",
     ])
 
-    # Check both raw text (for English keywords) and lemmatized (for Russian)
     lemmatized = get_lemmatized(vacancy)
     combined = raw_text + " " + lemmatized
 
     if _matches(combined, SENIOR_PATTERNS):
         return "senior"
+    if _matches(combined, INTERN_PATTERNS):
+        return "intern"
     if _matches(combined, JUNIOR_PATTERNS):
         return "junior"
     if _matches(combined, MIDDLE_PATTERNS):
         return "middle"
 
-    # Fallback: use hh.ru experience field
     exp_id = vacancy.get("experience", {}).get("id", "")
     if exp_id in ("noExperience",):
         return "junior"
@@ -70,7 +72,7 @@ def classify_level(vacancy: dict) -> str:
 
 def level_distribution(vacancies: list) -> dict:
     """Return {level: count} distribution."""
-    dist = {"junior": 0, "middle": 0, "senior": 0}
+    dist = {"intern": 0, "junior": 0, "middle": 0, "senior": 0}
     for v in vacancies:
         level = classify_level(v)
         dist[level] = dist.get(level, 0) + 1
