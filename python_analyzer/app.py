@@ -14,6 +14,7 @@ from analyzer.classifier import level_distribution
 from analyzer.charts import skills_by_region_chart, level_distribution_chart, top_skills_bar_chart
 from analyzer.nlp import extract_entities_batch, preprocess_vacancies
 from analyzer.scraper import scrape_vacancies
+from analyzer.cache_db import get_cache
 
 logger = logging.getLogger("hhanalyst")
 
@@ -244,44 +245,82 @@ def _demo_vacancies(query: str) -> list:
 async def fetch_vacancies(query: str, area: str = "", max_pages: int = 3) -> list:
     import copy
     key = f"{query}|{area}|{max_pages}"
+
+    # L1: in-memory cache (fastest, lost on restart)
     cached = _vacancy_cache.get(key)
     if cached and time.monotonic() - cached[0] < _CACHE_TTL:
         return copy.deepcopy(cached[1])
 
-    vacancies = await _fetch_vacancies_uncached(query, area, max_pages)
+    # L2: SQLite persistent cache (fresh)
+    db = get_cache()
+    db_fresh = db.get(key)
+    if db_fresh is not None:
+        _vacancy_cache[key] = (time.monotonic(), copy.deepcopy(db_fresh))
+        return db_fresh
+
+    vacancies = await _fetch_vacancies_uncached(query, area, max_pages, key)
     _vacancy_cache[key] = (time.monotonic(), copy.deepcopy(vacancies))
     return vacancies
 
 
-async def _fetch_vacancies_uncached(query: str, area: str, max_pages: int) -> list:
+async def _fetch_vacancies_uncached(
+    query: str, area: str, max_pages: int, cache_key: str
+) -> list:
+    db = get_cache()
+
+    # OFFLINE_MODE: сеть не трогаем, только локальные данные
     if OFFLINE_MODE:
-        cache = _load_offline_cache()
+        stale = db.get_stale(cache_key)
+        if stale is not None:
+            return stale
+        offline_file = _load_offline_cache()
         q = query.lower()
-        for key in cache:
+        for key in offline_file:
             if key != "default" and key in q:
-                return cache[key]
-        return cache.get("default", _demo_vacancies(query))
+                return offline_file[key]
+        return offline_file.get("default", _demo_vacancies(query))
 
-    # 1) Try Go collector
+    # 1) Go Collector
     try:
-        return await _fetch_from_collector(query, area, max_pages)
-    except Exception as collector_err:
-        logger.warning("Collector unavailable (%s)", collector_err)
+        vacancies = await _fetch_from_collector(query, area, max_pages)
+        db.set(cache_key, query, area, max_pages, vacancies)
+        return vacancies
+    except Exception as e:
+        logger.warning("Collector unavailable (%s)", e)
 
-    # 2) Try hh.ru API directly (needs HH_TOKEN)
+    # 2) hh.ru API напрямую
     if HH_TOKEN:
         try:
-            return await _fetch_direct(query, area, max_pages)
-        except Exception as api_err:
-            logger.warning("hh.ru API failed (%s)", api_err)
+            vacancies = await _fetch_direct(query, area, max_pages)
+            db.set(cache_key, query, area, max_pages, vacancies)
+            return vacancies
+        except Exception as e:
+            logger.warning("hh.ru API failed (%s)", e)
 
-    # 3) Scrape hh.ru website
+    # 3) Парсинг веб-сайта
     try:
-        return await scrape_vacancies(query, area, max_pages)
-    except Exception as scrape_err:
-        logger.warning("hh.ru scraping failed (%s), using demo data", scrape_err)
+        vacancies = await scrape_vacancies(query, area, max_pages)
+        db.set(cache_key, query, area, max_pages, vacancies)
+        return vacancies
+    except Exception as e:
+        logger.warning("hh.ru scraping failed (%s)", e)
 
-    # 4) Demo fallback
+    # 4) Устаревший SQLite-кэш (сеть недоступна, но данные есть)
+    stale = db.get_stale(cache_key)
+    if stale is not None:
+        logger.info("All sources failed — serving stale cache for '%s'", query)
+        return stale
+
+    # 5) Статичный offline_cache.json
+    offline_file = _load_offline_cache()
+    q = query.lower()
+    for key in offline_file:
+        if key != "default" and key in q:
+            return offline_file[key]
+    if offline_file.get("default"):
+        return offline_file["default"]
+
+    # 6) Захардкоженные демо-данные
     return _demo_vacancies(query)
 
 
@@ -354,7 +393,20 @@ async def dashboard(
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "service": "python_analyzer"}
+    return {"status": "ok", "service": "python_analyzer", "offline_mode": OFFLINE_MODE}
+
+
+@app.get("/api/cache")
+def cache_info():
+    """Show what's stored in the persistent SQLite cache."""
+    return get_cache().info()
+
+
+@app.delete("/api/cache")
+def cache_clear():
+    """Clear the persistent SQLite cache."""
+    get_cache().clear()
+    return {"status": "cleared"}
 
 
 @app.get("/api/skills")
