@@ -125,3 +125,11 @@ GitHub Actions (`.github/workflows/ci.yml`):
 Images:
 - `ghcr.io/evenikkal/hhanalyst-collector:latest`
 - `ghcr.io/evenikkal/hhanalyst-analyzer:latest`
+
+---
+
+## AI Tools
+
+This project was developed with the assistance of AI tools:
+- **[Claude Code](https://claude.ai/code)** (Anthropic) — code generation, architecture decisions, debugging
+- **GitHub Copilot** — inline code suggestions during development
