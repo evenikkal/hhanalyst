@@ -1,3 +1,4 @@
+import json
 import os
 import logging
 import time
@@ -20,6 +21,7 @@ app = FastAPI(title="HH Analyst", version="1.0.0")
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
 COLLECTOR_URL = os.environ.get("COLLECTOR_URL", "http://localhost:8082")
+OFFLINE_MODE = os.environ.get("OFFLINE_MODE", "0") == "1"
 HH_API_BASE = "https://api.hh.ru"
 HH_PAGE_SIZE = 100
 HH_TOKEN = os.environ.get("HH_TOKEN", "")
@@ -27,6 +29,16 @@ HH_TOKEN = os.environ.get("HH_TOKEN", "")
 _vacancy_cache: dict[str, tuple[float, list]] = {}
 _analysis_cache: dict[str, tuple[float, dict]] = {}
 _CACHE_TTL = 300
+
+
+def _load_offline_cache() -> dict:
+    """Load pre-saved vacancy data from data/offline_cache.json."""
+    cache_path = Path(__file__).parent / "data" / "offline_cache.json"
+    try:
+        return json.loads(cache_path.read_text(encoding="utf-8"))
+    except Exception:
+        logger.warning("Failed to load offline cache from %s", cache_path)
+        return {}
 
 
 async def _fetch_from_collector(query: str, area: str, max_pages: int) -> list:
@@ -242,6 +254,14 @@ async def fetch_vacancies(query: str, area: str = "", max_pages: int = 3) -> lis
 
 
 async def _fetch_vacancies_uncached(query: str, area: str, max_pages: int) -> list:
+    if OFFLINE_MODE:
+        cache = _load_offline_cache()
+        q = query.lower()
+        for key in cache:
+            if key != "default" and key in q:
+                return cache[key]
+        return cache.get("default", _demo_vacancies(query))
+
     # 1) Try Go collector
     try:
         return await _fetch_from_collector(query, area, max_pages)
