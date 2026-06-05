@@ -15,6 +15,7 @@ from .nlp import get_lemmatized
 _NORMALIZE = {
     "golang": "Go",
     "go": "Go",
+    "python": "Python",
     "python3": "Python",
     "python 3": "Python",
     "js": "JavaScript",

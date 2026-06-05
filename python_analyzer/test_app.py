@@ -62,8 +62,8 @@ def test_api_skills(mock_fetch):
     data = resp.json()
     assert data["total_vacancies"] == 3
     skill_names = [s[0] for s in data["top_skills"]]
-    assert "python" in skill_names
-    assert "docker" in skill_names
+    assert "Python" in skill_names
+    assert "Docker" in skill_names
 
 
 @patch("app.fetch_vacancies", new_callable=AsyncMock, return_value=SAMPLE_VACANCIES)
