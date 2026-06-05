@@ -36,6 +36,27 @@ jobs:
       - run: uv pip install --system -r requirements-dev.txt
       - run: pytest -v
 
+  security:
+    name: SAST analysis
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v6
+      - name: Python SAST (bandit)
+        run: |
+          cd python_analyzer
+          uv pip install --system bandit
+          bandit -r analyzer/ app.py -ll
+      - name: Go vet
+        run: cd go_collector && go vet ./...
+
   build-and-push:
     name: Build & push Docker images
     runs-on: ubuntu-latest
