@@ -7,3 +7,11 @@ dist/
 build/
 .env
 go_collector/go_collector.exe
+
+# Generated documents and diagram artifacts (produced by gen_*.py)
+*.docx
+*.pptx
+diagrams/
+
+# Editor / tooling
+.claude/
