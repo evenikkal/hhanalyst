@@ -4,21 +4,33 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"net/url"
+	"strconv"
 	"sync"
 	"time"
 
 	"github.com/evenikkal/hhanalyst/go_collector/internal/models"
 )
 
+// nonRetryableError marks an HTTP client error (4xx other than 429)
+// that will never succeed on retry.
+type nonRetryableError struct{ code int }
+
+func (e *nonRetryableError) Error() string {
+	return fmt.Sprintf("hh API returned %d (non-retryable)", e.code)
+}
+
 const (
 	defaultBaseURL = "https://api.hh.ru"
 	poolSize       = 5
 	pageSize       = 100
+	maxRetries     = 3                      // attempts per page before giving up
+	retryBackoff   = 500 * time.Millisecond // base delay, grows linearly per attempt
 )
 
 // job is a unit of work sent to the worker pool.
@@ -86,8 +98,43 @@ func (c *Client) worker(id int) {
 	}
 }
 
-// fetchPage makes one rate-limited request to hh.ru /vacancies.
+// fetchPage requests one page of /vacancies, retrying on transient
+// failures (network errors, HTTP 429 and 5xx). Each attempt is
+// rate-limited via the shared limiter; the back-off between attempts
+// grows linearly and honours the Retry-After header when present.
 func (c *Client) fetchPage(query, area string, page int) (*models.SearchResponse, error) {
+	var lastErr error
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		result, retryAfter, err := c.tryFetchPage(query, area, page)
+		if err == nil {
+			return result, nil
+		}
+		lastErr = err
+
+		// Client errors (4xx other than 429) will never succeed — stop now.
+		var nre *nonRetryableError
+		if errors.As(err, &nre) {
+			return nil, err
+		}
+
+		if attempt == maxRetries {
+			break
+		}
+		// Linear back-off, but never shorter than the server's Retry-After.
+		wait := time.Duration(attempt) * retryBackoff
+		if retryAfter > wait {
+			wait = retryAfter
+		}
+		log.Printf("page %d attempt %d/%d failed: %v — retrying in %s",
+			page, attempt, maxRetries, err, wait)
+		time.Sleep(wait)
+	}
+	return nil, fmt.Errorf("page %d: all %d attempts failed: %w", page, maxRetries, lastErr)
+}
+
+// tryFetchPage performs a single rate-limited request. It returns a
+// non-zero retryAfter when the server asked us to slow down (HTTP 429).
+func (c *Client) tryFetchPage(query, area string, page int) (*models.SearchResponse, time.Duration, error) {
 	<-c.limiter
 
 	params := url.Values{}
@@ -101,31 +148,51 @@ func (c *Client) fetchPage(query, area string, page int) (*models.SearchResponse
 
 	req, err := http.NewRequest("GET", c.baseURL+"/vacancies?"+params.Encode(), nil)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	req.Header.Set("User-Agent", "hhanalyst/1.0 (evenikkal@github)")
 	req.Header.Set("HH-User-Agent", "hhanalyst/1.0 (evenikkal@github)")
 
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, 0, err // transient network error — caller will retry
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("hh API returned %d", resp.StatusCode)
+	switch {
+	case resp.StatusCode == http.StatusOK:
+		// fall through to body parsing below
+	case resp.StatusCode == http.StatusTooManyRequests:
+		return nil, parseRetryAfter(resp.Header.Get("Retry-After")),
+			fmt.Errorf("hh API rate-limited (429)")
+	case resp.StatusCode >= 500:
+		return nil, 0, fmt.Errorf("hh API server error %d", resp.StatusCode)
+	default:
+		// 4xx other than 429 is a client error — do not retry.
+		return nil, 0, &nonRetryableError{code: resp.StatusCode}
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	var result models.SearchResponse
 	if err := json.Unmarshal(body, &result); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
-	return &result, nil
+	return &result, 0, nil
+}
+
+// parseRetryAfter reads a Retry-After header given as integer seconds.
+func parseRetryAfter(h string) time.Duration {
+	if h == "" {
+		return 0
+	}
+	if secs, err := strconv.Atoi(h); err == nil && secs > 0 {
+		return time.Duration(secs) * time.Second
+	}
+	return 0
 }
 
 // Collect fetches up to maxPages pages by dispatching work to the pool.

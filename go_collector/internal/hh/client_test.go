@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -91,6 +92,52 @@ func TestCollectAPIError(t *testing.T) {
 	_, err := c.Collect("test", "", 1)
 	if err == nil {
 		t.Fatal("expected error for 429 response, got nil")
+	}
+}
+
+func TestCollectRetriesThenSucceeds(t *testing.T) {
+	var attempts int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Fail the first two attempts with a transient 503, then succeed.
+		if atomic.AddInt32(&attempts, 1) <= 2 {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		resp := models.SearchResponse{
+			Items: []models.Vacancy{{ID: "1", Name: "Recovered"}},
+			Pages: 1,
+		}
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer srv.Close()
+
+	c := newTestClient(srv.URL)
+	vacancies, err := c.Collect("test", "", 1)
+	if err != nil {
+		t.Fatalf("expected success after retries, got %v", err)
+	}
+	if len(vacancies) != 1 || vacancies[0].Name != "Recovered" {
+		t.Fatalf("unexpected result: %+v", vacancies)
+	}
+	if got := atomic.LoadInt32(&attempts); got != 3 {
+		t.Errorf("expected 3 attempts (2 fail + 1 ok), got %d", got)
+	}
+}
+
+func TestCollectNonRetryableFailsFast(t *testing.T) {
+	var attempts int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&attempts, 1)
+		w.WriteHeader(http.StatusBadRequest) // 400 — client error, must not retry
+	}))
+	defer srv.Close()
+
+	c := newTestClient(srv.URL)
+	if _, err := c.Collect("test", "", 1); err == nil {
+		t.Fatal("expected error for 400 response, got nil")
+	}
+	if got := atomic.LoadInt32(&attempts); got != 1 {
+		t.Errorf("expected exactly 1 attempt for non-retryable 400, got %d", got)
 	}
 }
 
