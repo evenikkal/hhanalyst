@@ -13,7 +13,9 @@ Usage:
 """
 
 import json
+import os
 import sqlite3
+import tempfile
 import time
 import logging
 from pathlib import Path
@@ -21,39 +23,71 @@ from typing import Optional
 
 logger = logging.getLogger("hhanalyst.cache")
 
-DB_PATH = Path(__file__).parent.parent / "data" / "vacancies.db"
+# Default location; can be overridden with HHANALYST_DB_PATH (useful when the
+# repo lives in a read-only / cloud-synced folder where SQLite cannot create
+# the file — e.g. some OneDrive setups).
+_DEFAULT_DB = Path(__file__).parent.parent / "data" / "vacancies.db"
+DB_PATH = Path(os.environ["HHANALYST_DB_PATH"]) if os.environ.get("HHANALYST_DB_PATH") else _DEFAULT_DB
 FRESH_TTL = 300      # seconds — treat as "current" data
 STALE_TTL = 7 * 24 * 3600  # 7 days — keep for offline fallback
+
+_SCHEMA = """
+    CREATE TABLE IF NOT EXISTS vacancy_cache (
+        key        TEXT PRIMARY KEY,
+        query      TEXT NOT NULL,
+        area       TEXT NOT NULL DEFAULT '',
+        max_pages  INTEGER NOT NULL DEFAULT 3,
+        data       TEXT NOT NULL,
+        fetched_at REAL NOT NULL,
+        count      INTEGER NOT NULL DEFAULT 0
+    )
+"""
 
 
 class VacancyCache:
     def __init__(self, db_path: Path = DB_PATH):
-        db_path.parent.mkdir(parents=True, exist_ok=True)
+        # Try the configured path first; if the file cannot be opened or
+        # created (permissions, read-only / cloud-synced folder), fall back
+        # to a writable temp directory. If even that fails, the L2 cache is
+        # disabled and the app keeps working without persistent caching.
+        self.enabled = False
         self._db_path = str(db_path)
-        self._init_db()
+
+        if self._try_init(db_path):
+            self.enabled = True
+            return
+
+        fallback = Path(tempfile.gettempdir()) / "hhanalyst" / "vacancies.db"
+        if self._try_init(fallback):
+            self._db_path = str(fallback)
+            self.enabled = True
+            logger.warning(
+                "Primary cache path unavailable; using fallback DB at %s", fallback)
+        else:
+            logger.warning(
+                "L2 SQLite cache disabled: could not open a database file. "
+                "App will run without persistent caching. "
+                "Set HHANALYST_DB_PATH to a writable location to re-enable it.")
+
+    def _try_init(self, db_path: Path) -> bool:
+        """Attempt to create the directory, file and schema. Returns success."""
+        try:
+            db_path.parent.mkdir(parents=True, exist_ok=True)
+            with sqlite3.connect(str(db_path), timeout=5) as conn:
+                conn.execute(_SCHEMA)
+                conn.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_fetched ON vacancy_cache(fetched_at)")
+                conn.commit()
+            self._db_path = str(db_path)
+            return True
+        except (sqlite3.Error, OSError) as e:
+            logger.warning("Cache init failed at %s: %s", db_path, e)
+            return False
 
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self._db_path, timeout=5)
         conn.row_factory = sqlite3.Row
         return conn
-
-    def _init_db(self):
-        with self._connect() as conn:
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS vacancy_cache (
-                    key        TEXT PRIMARY KEY,
-                    query      TEXT NOT NULL,
-                    area       TEXT NOT NULL DEFAULT '',
-                    max_pages  INTEGER NOT NULL DEFAULT 3,
-                    data       TEXT NOT NULL,
-                    fetched_at REAL NOT NULL,
-                    count      INTEGER NOT NULL DEFAULT 0
-                )
-            """)
-            conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_fetched ON vacancy_cache(fetched_at)"
-            )
-            conn.commit()
 
     # ── Public API ────────────────────────────────────────────────
 
@@ -83,6 +117,8 @@ class VacancyCache:
 
     def set(self, key: str, query: str, area: str, max_pages: int, data: list):
         """Save or update cached data."""
+        if not self.enabled:
+            return
         try:
             with self._connect() as conn:
                 conn.execute("""
@@ -102,6 +138,8 @@ class VacancyCache:
 
     def info(self) -> dict:
         """Return cache statistics."""
+        if not self.enabled:
+            return {"total_entries": 0, "entries": [], "enabled": False}
         try:
             with self._connect() as conn:
                 rows = conn.execute(
@@ -128,6 +166,8 @@ class VacancyCache:
 
     def clear(self):
         """Delete all cached entries."""
+        if not self.enabled:
+            return
         with self._connect() as conn:
             conn.execute("DELETE FROM vacancy_cache")
             conn.commit()
@@ -135,6 +175,8 @@ class VacancyCache:
     # ── Internal ──────────────────────────────────────────────────
 
     def _fetch_row(self, key: str) -> Optional[sqlite3.Row]:
+        if not self.enabled:
+            return None
         try:
             with self._connect() as conn:
                 return conn.execute(
