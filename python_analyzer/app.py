@@ -374,16 +374,22 @@ async def _fetch_vacancies_uncached(
 # ── Web UI ──────────────────────────────────────────────────────
 
 def _status_ctx(results: dict | None = None) -> dict:
-    """Connection status badge state for the UI.
+    """Connection status badge state for the UI, derived from the data source.
 
-    offline  — OFFLINE_MODE is on (network never used);
-    degraded — last result came from a fallback source (hh.ru unavailable);
-    online   — live sources are working.
+    offline  — OFFLINE_MODE is on, or all live sources failed and only the
+               generic offline/demo dataset is available (effectively no
+               connection to real data);
+    degraded — live sources failed but we served real, previously-fetched
+               data from the (stale) cache;
+    online   — live sources are working, or we served fresh cached data.
     """
     if OFFLINE_MODE:
         return {"status_kind": "offline", "status_label": "Offline"}
-    if results and results.get("degraded"):
+    source = results.get("source") if results else None
+    if source == "stale":
         return {"status_kind": "degraded", "status_label": "Резерв"}
+    if source in ("offline", "demo"):
+        return {"status_kind": "offline", "status_label": "Offline"}
     return {"status_kind": "online", "status_label": "Online"}
 
 
@@ -426,6 +432,20 @@ async def dashboard(
             preprocess_vacancies(vacancies)
             entities = extract_entities_batch(vacancies)
             degraded = source not in LIVE_SOURCES and source != "cache"
+            if source == "stale":
+                notice = (
+                    "Живые источники недоступны (возможно, hh.ru временно "
+                    "ограничил запросы). Показаны данные из кэша — они могут "
+                    "быть устаревшими. Повторите попытку позже."
+                )
+            elif source in ("offline", "demo"):
+                notice = (
+                    "Живые источники недоступны и нет кэша по этому запросу. "
+                    "Показан резервный набор данных — он одинаков для всех "
+                    "запросов. Повторите попытку позже."
+                )
+            else:
+                notice = None
             results = {
                 "total_vacancies": len(vacancies),
                 "top_skills": top_skills(vacancies),
@@ -433,12 +453,7 @@ async def dashboard(
                 "entities": entities,
                 "source": source,
                 "degraded": degraded,
-                "notice": (
-                    "Живые источники недоступны (возможно, hh.ru временно "
-                    "ограничил запросы). Показаны резервные данные — они "
-                    "одинаковы для всех запросов. Повторите попытку позже."
-                    if degraded else None
-                ),
+                "notice": notice,
                 "charts": {
                     "top_skills": top_skills_bar_chart(vacancies),
                     "level_distribution": level_distribution_chart(vacancies),
