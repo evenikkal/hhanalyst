@@ -172,6 +172,14 @@ async def scrape_vacancies(query: str, area: str = "", max_pages: int = 3) -> li
 
             vacancies = _parse_search_page(resp.text)
             if not vacancies:
+                # Page 0 with no cards almost always means an anti-bot /
+                # captcha interstitial (HTTP 200 but no results). Treat it as
+                # a failure so the caller falls back instead of caching an
+                # empty result as if the query genuinely had no vacancies.
+                if page == 0:
+                    raise RuntimeError(
+                        "hh.ru вернул страницу без вакансий (возможно, анти-бот/капча)"
+                    )
                 break
             all_vacancies.extend(vacancies)
 

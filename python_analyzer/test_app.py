@@ -46,7 +46,8 @@ def test_index_page():
     assert "HH Analyst" in resp.text
 
 
-@patch("app.fetch_vacancies", new_callable=AsyncMock, return_value=SAMPLE_VACANCIES)
+@patch("app.fetch_vacancies_with_source", new_callable=AsyncMock,
+       return_value=(SAMPLE_VACANCIES, "scrape"))
 def test_dashboard(mock_fetch):
     resp = client.get("/dashboard?query=python&max_pages=1")
     assert resp.status_code == 200
@@ -55,18 +56,22 @@ def test_dashboard(mock_fetch):
     assert "python" in resp.text.lower()
 
 
-@patch("app.fetch_vacancies", new_callable=AsyncMock, return_value=SAMPLE_VACANCIES)
+@patch("app.fetch_vacancies_with_source", new_callable=AsyncMock,
+       return_value=(SAMPLE_VACANCIES, "scrape"))
 def test_api_skills(mock_fetch):
     resp = client.get("/api/skills?query=python&max_pages=1")
     assert resp.status_code == 200
     data = resp.json()
     assert data["total_vacancies"] == 3
+    assert data["source"] == "scrape"
+    assert data["degraded"] is False
     skill_names = [s[0] for s in data["top_skills"]]
     assert "Python" in skill_names
     assert "Docker" in skill_names
 
 
-@patch("app.fetch_vacancies", new_callable=AsyncMock, return_value=SAMPLE_VACANCIES)
+@patch("app.fetch_vacancies_with_source", new_callable=AsyncMock,
+       return_value=(SAMPLE_VACANCIES, "scrape"))
 def test_api_levels(mock_fetch):
     resp = client.get("/api/levels?query=python&max_pages=1")
     assert resp.status_code == 200
@@ -75,6 +80,34 @@ def test_api_levels(mock_fetch):
     assert dist["junior"] == 1
     assert dist["senior"] == 1
     assert dist["middle"] == 1
+
+
+@patch("app._fetch_vacancies_uncached", new_callable=AsyncMock,
+       return_value=(SAMPLE_VACANCIES, "offline"))
+def test_fallback_not_cached(mock_uncached):
+    """Fallback data must never poison the cache, so each call retries live."""
+    import asyncio
+    import app as appmod
+
+    appmod._vacancy_cache.clear()
+    vac, source = asyncio.run(
+        appmod.fetch_vacancies_with_source("rare-query-xyz", "", 1)
+    )
+    assert source == "offline"
+    assert vac == SAMPLE_VACANCIES
+    # Nothing was cached, so the uncached path runs again on the next call.
+    key = "rare-query-xyz||1"
+    assert key not in appmod._vacancy_cache
+
+
+@patch("app.fetch_vacancies_with_source", new_callable=AsyncMock,
+       return_value=(SAMPLE_VACANCIES, "offline"))
+def test_api_skills_marks_degraded(mock_fetch):
+    resp = client.get("/api/skills?query=python&max_pages=1")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["source"] == "offline"
+    assert data["degraded"] is True
 
 
 @patch("app.fetch_vacancies", new_callable=AsyncMock, return_value=SAMPLE_VACANCIES)

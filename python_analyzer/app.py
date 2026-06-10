@@ -1,3 +1,4 @@
+import copy
 import json
 import os
 import logging
@@ -30,6 +31,13 @@ HH_TOKEN = os.environ.get("HH_TOKEN", "")
 _vacancy_cache: dict[str, tuple[float, list]] = {}
 _analysis_cache: dict[str, tuple[float, dict]] = {}
 _CACHE_TTL = 300
+
+# Sources that represent real, live data worth caching. Fallback sources
+# (stale/offline/demo) must never be cached as "fresh" — otherwise a single
+# upstream outage poisons the cache and every query starts returning the same
+# fallback dataset until the TTL expires.
+LIVE_SOURCES = {"collector", "api", "scrape"}
+_last_source: dict[str, str] = {}
 
 
 def _load_offline_cache() -> dict:
@@ -243,48 +251,70 @@ def _demo_vacancies(query: str) -> list:
 
 
 async def fetch_vacancies(query: str, area: str = "", max_pages: int = 3) -> list:
-    import copy
+    """Backward-compatible wrapper returning only the vacancy list."""
+    vacancies, _ = await fetch_vacancies_with_source(query, area, max_pages)
+    return vacancies
+
+
+async def fetch_vacancies_with_source(
+    query: str, area: str = "", max_pages: int = 3
+) -> tuple[list, str]:
+    """Fetch vacancies and report where they came from.
+
+    Returns (vacancies, source). Only live, non-empty results are cached;
+    fallback data (stale/offline/demo) is returned but never persisted, so
+    once upstream recovers every query fetches fresh data again instead of
+    being stuck on a shared fallback dataset.
+    """
     key = f"{query}|{area}|{max_pages}"
 
     # L1: in-memory cache (fastest, lost on restart)
     cached = _vacancy_cache.get(key)
     if cached and time.monotonic() - cached[0] < _CACHE_TTL:
-        return copy.deepcopy(cached[1])
+        return copy.deepcopy(cached[1]), _last_source.get(key, "cache")
 
     # L2: SQLite persistent cache (fresh)
     db = get_cache()
     db_fresh = db.get(key)
     if db_fresh is not None:
         _vacancy_cache[key] = (time.monotonic(), copy.deepcopy(db_fresh))
-        return db_fresh
+        _last_source[key] = "cache"
+        return db_fresh, "cache"
 
-    vacancies = await _fetch_vacancies_uncached(query, area, max_pages, key)
-    _vacancy_cache[key] = (time.monotonic(), copy.deepcopy(vacancies))
-    return vacancies
+    vacancies, source = await _fetch_vacancies_uncached(query, area, max_pages, key)
+    _last_source[key] = source
+
+    # Never cache fallback or empty results — only genuine live data.
+    if source in LIVE_SOURCES and vacancies:
+        _vacancy_cache[key] = (time.monotonic(), copy.deepcopy(vacancies))
+        db.set(key, query, area, max_pages, vacancies)
+
+    return vacancies, source
 
 
 async def _fetch_vacancies_uncached(
     query: str, area: str, max_pages: int, cache_key: str
-) -> list:
+) -> tuple[list, str]:
     db = get_cache()
 
     # OFFLINE_MODE: сеть не трогаем, только локальные данные
     if OFFLINE_MODE:
         stale = db.get_stale(cache_key)
         if stale is not None:
-            return stale
+            return stale, "stale"
         offline_file = _load_offline_cache()
         q = query.lower()
-        for key in offline_file:
-            if key != "default" and key in q:
-                return offline_file[key]
-        return offline_file.get("default", _demo_vacancies(query))
+        for k in offline_file:
+            if k != "default" and k in q:
+                return offline_file[k], "offline"
+        return offline_file.get("default", _demo_vacancies(query)), "offline"
 
     # 1) Go Collector
     try:
         vacancies = await _fetch_from_collector(query, area, max_pages)
-        db.set(cache_key, query, area, max_pages, vacancies)
-        return vacancies
+        if vacancies:
+            return vacancies, "collector"
+        logger.warning("Collector returned no vacancies for '%s'", query)
     except Exception as e:
         logger.warning("Collector unavailable (%s)", e)
 
@@ -292,16 +322,17 @@ async def _fetch_vacancies_uncached(
     if HH_TOKEN:
         try:
             vacancies = await _fetch_direct(query, area, max_pages)
-            db.set(cache_key, query, area, max_pages, vacancies)
-            return vacancies
+            if vacancies:
+                return vacancies, "api"
         except Exception as e:
             logger.warning("hh.ru API failed (%s)", e)
 
     # 3) Парсинг веб-сайта
     try:
         vacancies = await scrape_vacancies(query, area, max_pages)
-        db.set(cache_key, query, area, max_pages, vacancies)
-        return vacancies
+        if vacancies:
+            return vacancies, "scrape"
+        logger.warning("Scraping returned no vacancies for '%s'", query)
     except Exception as e:
         logger.warning("hh.ru scraping failed (%s)", e)
 
@@ -309,19 +340,19 @@ async def _fetch_vacancies_uncached(
     stale = db.get_stale(cache_key)
     if stale is not None:
         logger.info("All sources failed — serving stale cache for '%s'", query)
-        return stale
+        return stale, "stale"
 
     # 5) Статичный offline_cache.json
     offline_file = _load_offline_cache()
     q = query.lower()
-    for key in offline_file:
-        if key != "default" and key in q:
-            return offline_file[key]
+    for k in offline_file:
+        if k != "default" and k in q:
+            return offline_file[k], "offline"
     if offline_file.get("default"):
-        return offline_file["default"]
+        return offline_file["default"], "offline"
 
     # 6) Захардкоженные демо-данные
-    return _demo_vacancies(query)
+    return _demo_vacancies(query), "demo"
 
 
 # ── Web UI ──────────────────────────────────────────────────────
@@ -359,21 +390,32 @@ async def dashboard(
         results, error = cached[1], None
     else:
         try:
-            vacancies = await fetch_vacancies(query, area, max_pages)
+            vacancies, source = await fetch_vacancies_with_source(query, area, max_pages)
             preprocess_vacancies(vacancies)
             entities = extract_entities_batch(vacancies)
+            degraded = source not in LIVE_SOURCES and source != "cache"
             results = {
                 "total_vacancies": len(vacancies),
                 "top_skills": top_skills(vacancies),
                 "level_distribution": level_distribution(vacancies),
                 "entities": entities,
+                "source": source,
+                "degraded": degraded,
+                "notice": (
+                    "Живые источники недоступны (возможно, hh.ru временно "
+                    "ограничил запросы). Показаны резервные данные — они "
+                    "одинаковы для всех запросов. Повторите попытку позже."
+                    if degraded else None
+                ),
                 "charts": {
                     "top_skills": top_skills_bar_chart(vacancies),
                     "level_distribution": level_distribution_chart(vacancies),
                     "skills_by_region": skills_by_region_chart(vacancies),
                 },
             }
-            _analysis_cache[cache_key] = (time.monotonic(), results)
+            # Don't cache degraded analysis — let the next view retry live.
+            if not degraded:
+                _analysis_cache[cache_key] = (time.monotonic(), results)
             error = None
         except Exception as e:
             logger.exception("Analysis failed")
@@ -416,10 +458,16 @@ async def skills_endpoint(
     max_pages: int = Query(3, ge=1, le=20),
     top_n: int = Query(20, ge=1, le=50),
 ):
-    vacancies = await fetch_vacancies(query, area, max_pages)
+    vacancies, source = await fetch_vacancies_with_source(query, area, max_pages)
     preprocess_vacancies(vacancies)
     skills = top_skills(vacancies, top_n=top_n)
-    return {"query": query, "total_vacancies": len(vacancies), "top_skills": skills}
+    return {
+        "query": query,
+        "total_vacancies": len(vacancies),
+        "top_skills": skills,
+        "source": source,
+        "degraded": source not in LIVE_SOURCES and source != "cache",
+    }
 
 
 @app.get("/api/levels")
@@ -428,10 +476,16 @@ async def levels_endpoint(
     area: str = Query(""),
     max_pages: int = Query(3, ge=1, le=20),
 ):
-    vacancies = await fetch_vacancies(query, area, max_pages)
+    vacancies, source = await fetch_vacancies_with_source(query, area, max_pages)
     preprocess_vacancies(vacancies)
     dist = level_distribution(vacancies)
-    return {"query": query, "total_vacancies": len(vacancies), "distribution": dist}
+    return {
+        "query": query,
+        "total_vacancies": len(vacancies),
+        "distribution": dist,
+        "source": source,
+        "degraded": source not in LIVE_SOURCES and source != "cache",
+    }
 
 
 @app.get("/api/charts/skills-by-region")
