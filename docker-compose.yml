@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   python_analyzer:
     build: ./python_analyzer
@@ -7,7 +5,15 @@ services:
       - "8090:8090"
     environment:
       - COLLECTOR_URL=http://go_collector:8082
-      # - OFFLINE_MODE=1  # Enable to use cached data without network
+      # Cache tuning (defaults shown). Long TTLs mean fewer hh.ru requests and
+      # multi-day retention; SQLite has no practical row limit, so the cache can
+      # hold a very large number of distinct queries.
+      # - CACHE_FRESH_TTL=259200   # serve cached data without re-querying, sec (default 3 days)
+      # - CACHE_STALE_TTL=2592000  # keep data for offline fallback, sec (default 30 days)
+      # - OFFLINE_MODE=1           # use cached data without network
+    volumes:
+      # Persist the SQLite cache across container recreations.
+      - hh_cache:/app/data
     healthcheck:
       test: ["CMD", "python", "-c",
              "import urllib.request; urllib.request.urlopen('http://localhost:8090/health')"]
@@ -23,3 +29,6 @@ services:
     profiles:
       - with-collector
     restart: unless-stopped
+
+volumes:
+  hh_cache:

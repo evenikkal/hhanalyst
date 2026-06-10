@@ -30,7 +30,21 @@ HH_TOKEN = os.environ.get("HH_TOKEN", "")
 
 _vacancy_cache: dict[str, tuple[float, list]] = {}
 _analysis_cache: dict[str, tuple[float, dict]] = {}
-_CACHE_TTL = 300
+
+# In-memory L1 retention matches the persistent FRESH_TTL (default 3 days) so a
+# query is served from memory for as long as it is considered fresh. The bulk of
+# long-term, high-volume storage lives in SQLite (L2, default 30-day retention,
+# no practical row limit); L1 is only a bounded speed layer in front of it.
+_CACHE_TTL = int(os.environ.get("CACHE_FRESH_TTL", 3 * 24 * 3600))
+_L1_MAX_VACANCY = 512   # distinct queries kept in RAM
+_L1_MAX_ANALYSIS = 128  # smaller: each entry holds base64 chart images
+
+
+def _cache_put(store: dict, key, value, cap: int) -> None:
+    """Insert into an insertion-ordered dict, evicting the oldest over cap."""
+    store[key] = value
+    while len(store) > cap:
+        store.pop(next(iter(store)), None)
 
 # Sources that represent real, live data worth caching. Fallback sources
 # (stale/offline/demo) must never be cached as "fresh" — otherwise a single
@@ -277,7 +291,8 @@ async def fetch_vacancies_with_source(
     db = get_cache()
     db_fresh = db.get(key)
     if db_fresh is not None:
-        _vacancy_cache[key] = (time.monotonic(), copy.deepcopy(db_fresh))
+        _cache_put(_vacancy_cache, key,
+                   (time.monotonic(), copy.deepcopy(db_fresh)), _L1_MAX_VACANCY)
         _last_source[key] = "cache"
         return db_fresh, "cache"
 
@@ -286,7 +301,8 @@ async def fetch_vacancies_with_source(
 
     # Never cache fallback or empty results — only genuine live data.
     if source in LIVE_SOURCES and vacancies:
-        _vacancy_cache[key] = (time.monotonic(), copy.deepcopy(vacancies))
+        _cache_put(_vacancy_cache, key,
+                   (time.monotonic(), copy.deepcopy(vacancies)), _L1_MAX_VACANCY)
         db.set(key, query, area, max_pages, vacancies)
 
     return vacancies, source
@@ -415,7 +431,8 @@ async def dashboard(
             }
             # Don't cache degraded analysis — let the next view retry live.
             if not degraded:
-                _analysis_cache[cache_key] = (time.monotonic(), results)
+                _cache_put(_analysis_cache, cache_key,
+                           (time.monotonic(), results), _L1_MAX_ANALYSIS)
             error = None
         except Exception as e:
             logger.exception("Analysis failed")

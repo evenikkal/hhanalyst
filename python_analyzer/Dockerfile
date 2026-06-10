@@ -13,8 +13,14 @@ WORKDIR /app
 COPY --from=builder /deps /usr/local
 COPY . .
 
-RUN adduser --disabled-password --gecos "" appuser
+RUN adduser --disabled-password --gecos "" appuser \
+    && mkdir -p /app/data \
+    && chown -R appuser:appuser /app/data
 USER appuser
+
+# Persistent cache location (mount a volume here to keep the SQLite cache
+# across container restarts/recreations).
+VOLUME ["/app/data"]
 
 EXPOSE 8090
 CMD uvicorn app:app --host 0.0.0.0 --port ${PORT:-8090}

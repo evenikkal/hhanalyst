@@ -28,8 +28,14 @@ logger = logging.getLogger("hhanalyst.cache")
 # the file — e.g. some OneDrive setups).
 _DEFAULT_DB = Path(__file__).parent.parent / "data" / "vacancies.db"
 DB_PATH = Path(os.environ["HHANALYST_DB_PATH"]) if os.environ.get("HHANALYST_DB_PATH") else _DEFAULT_DB
-FRESH_TTL = 300      # seconds — treat as "current" data
-STALE_TTL = 7 * 24 * 3600  # 7 days — keep for offline fallback
+
+# How long cached data is served directly (without re-querying hh.ru) and how
+# long it is kept at all. Both are configurable via environment variables.
+# Long defaults mean fewer requests to hh.ru (less chance of being rate-limited)
+# and multi-day retention. SQLite imposes no practical row limit, so the cache
+# can hold a very large number of distinct queries.
+FRESH_TTL = int(os.environ.get("CACHE_FRESH_TTL", 3 * 24 * 3600))   # 3 days
+STALE_TTL = int(os.environ.get("CACHE_STALE_TTL", 30 * 24 * 3600))  # 30 days
 
 _SCHEMA = """
     CREATE TABLE IF NOT EXISTS vacancy_cache (
