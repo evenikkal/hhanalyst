@@ -373,6 +373,20 @@ async def _fetch_vacancies_uncached(
 
 # ── Web UI ──────────────────────────────────────────────────────
 
+def _status_ctx(results: dict | None = None) -> dict:
+    """Connection status badge state for the UI.
+
+    offline  — OFFLINE_MODE is on (network never used);
+    degraded — last result came from a fallback source (hh.ru unavailable);
+    online   — live sources are working.
+    """
+    if OFFLINE_MODE:
+        return {"status_kind": "offline", "status_label": "Offline"}
+    if results and results.get("degraded"):
+        return {"status_kind": "degraded", "status_label": "Резерв"}
+    return {"status_kind": "online", "status_label": "Online"}
+
+
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
     return templates.TemplateResponse(request, "index.html", {
@@ -381,6 +395,7 @@ async def index(request: Request):
         "max_pages": 3,
         "results": None,
         "error": None,
+        **_status_ctx(),
     })
 
 
@@ -398,6 +413,7 @@ async def dashboard(
             "max_pages": max_pages,
             "results": None,
             "error": None,
+            **_status_ctx(),
         })
 
     cache_key = f"{query}|{area}|{max_pages}"
@@ -445,6 +461,7 @@ async def dashboard(
         "max_pages": max_pages,
         "results": results,
         "error": error,
+        **_status_ctx(results),
     })
 
 

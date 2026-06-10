@@ -134,6 +134,14 @@
       background: var(--green);
       box-shadow: 0 0 6px var(--green);
     }
+    .offline-badge .dot.degraded {
+      background: #e67e00;
+      box-shadow: 0 0 6px #e67e00;
+    }
+    .offline-badge .dot.offline {
+      background: #9aa0a6;
+      box-shadow: none;
+    }
 
     /* ── Main ── */
     .main {
@@ -590,8 +598,8 @@
 
     <div class="sidebar-footer">
       <div class="offline-badge">
-        <span class="dot"></span>
-        Online
+        <span class="dot {{ status_kind | default('online') }}"></span>
+        {{ status_label | default('Online') }}
       </div>
     </div>
   </aside>
